@@ -135,7 +135,7 @@ We can also split data into training sets and test sets.
 # Split data into training and testing sets
 splitdata = [np.array_split(X, 2) for X in Xs]
 traindata = [X_train for (X_train, X_test) in splitdata]
-testdata = [X_train for (X_train, X_test) in splitdata]
+testdata = [X_test for (X_train, X_test) in splitdata]
 
 # Compute all pairwise train and test distances.
 train_dists, test_dists = pairwise_distances(metric, traindata, testdata=testdata)
