@@ -3,7 +3,7 @@ Tests deterministic metrics.
 """
 import pytest
 import numpy as np
-from netrep.metrics import LinearMetric #, KernelizedMetric
+from netrep.metrics import LinearMetric, PermutationMetric #, KernelizedMetric
 from netrep.utils import angular_distance, rand_orth
 from numpy.testing import assert_array_almost_equal
 from sklearn.utils.validation import check_random_state
@@ -162,3 +162,20 @@ def test_triangle_inequality_linear(seed, alpha, m, n):
 
     assert dXY <= (dXM + dMY + TOL)
 
+
+@pytest.mark.parametrize('seed', [1, 2, 3])
+@pytest.mark.parametrize('center_columns', [True, False])
+@pytest.mark.parametrize('m', [100])
+@pytest.mark.parametrize('n', [10])
+def test_permutation(seed, center_columns, m, n):
+
+    # Set random seed, draw random rotation
+    rs = check_random_state(seed)
+    
+    # Create a pair of randomly rotated matrices.
+    X = rs.randn(m, n)
+    Y = np.copy(X)[:, rs.permutation(n)]
+
+    # Fit model, assert distance == 0.
+    metric = PermutationMetric(center_columns=center_columns)
+    assert abs(metric.fit(X, Y).score(X, Y)) < TOL
