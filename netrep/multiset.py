@@ -244,8 +244,8 @@ def pairwise_distances(metric, traindata, testdata=None, verbose=True):
 
             # Evaluate distance on the test set.
             if testdata is not None:
-                testdists[i, j] = metric.score(testdata[i], testdata[j])
-                testdists[j, i] = testdists[j, i]
+                D_test[i, j] = metric.score(testdata[i], testdata[j])
+                D_test[j, i] = D_test[i, j]
 
             # Update progress bar.
             if verbose:
