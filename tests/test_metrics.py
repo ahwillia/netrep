@@ -5,6 +5,7 @@ import pytest
 import numpy as np
 from netrep.metrics import LinearMetric, PermutationMetric #, KernelizedMetric
 from netrep.utils import angular_distance, rand_orth
+from netrep.multiset import pairwise_distances
 from numpy.testing import assert_array_almost_equal
 from sklearn.utils.validation import check_random_state
 
@@ -38,8 +39,8 @@ def test_centered_procrustes(seed, m, n):
     # Set random seed, draw random rotation, offset, and isotropic scaling.
     rs = check_random_state(seed)
     Q = rand_orth(n, n, random_state=rs)
-    v = np.random.randn(1, n)
-    c = np.random.exponential()
+    v = rs.randn(1, n)
+    c = rs.exponential()
 
     # Create a pair of randomly rotated matrices.
     X = rs.randn(m, n)
@@ -83,7 +84,7 @@ def test_centered_cca(seed, m, n):
     # Set random seed, draw random linear alignment and offset.
     rs = check_random_state(seed)
     W = rs.randn(n, n)
-    v = np.random.randn(1, n)
+    v = rs.randn(1, n)
 
     # Create a pair of matrices related by a linear transformation.
     X = rs.randn(m, n)
@@ -179,3 +180,29 @@ def test_permutation(seed, center_columns, m, n):
     # Fit model, assert distance == 0.
     metric = PermutationMetric(center_columns=center_columns)
     assert abs(metric.fit(X, Y).score(X, Y)) < TOL
+
+
+
+@pytest.mark.parametrize('seed', [1, 2, 3])
+@pytest.mark.parametrize('m', [31])
+@pytest.mark.parametrize('n', [30])
+@pytest.mark.parametrize('N', [20])
+@pytest.mark.parametrize('b', np.linspace(0.1, 1, 4))
+@pytest.mark.parametrize('lam', [1e-2, 1e-1, 1e0, 1e1])
+def test_laplacian_kernel_posdef(seed, m, n, N, b, lam):
+
+    # Set random seed, sample random datasets
+    rs = check_random_state(seed)
+    X0 = rs.randn(m, n)
+    Xs = [b * X0 + (1 - b) * rs.randn(m, n) for _ in range(N)]
+
+
+    # Compute pairwise distances.
+    metric = LinearMetric(alpha=1.0, center_columns=True)
+    D = pairwise_distances(metric, Xs, verbose=False)
+
+    # Compute kernel matrix.
+    K = np.exp(-lam * D)
+    
+    # Assert positive definite.    
+    assert np.linalg.eigvalsh(K).min() > -TOL
