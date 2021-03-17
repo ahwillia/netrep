@@ -187,7 +187,7 @@ def test_permutation(seed, center_columns, m, n):
 @pytest.mark.parametrize('m', [31])
 @pytest.mark.parametrize('n', [30])
 @pytest.mark.parametrize('N', [20])
-@pytest.mark.parametrize('b', np.linspace(0, 1, 4))
+@pytest.mark.parametrize('b', np.logspace(-2, 0, 4))
 @pytest.mark.parametrize('lam', [1e-2, 1e-1, 1e0, 1e1])
 def test_laplacian_kernel_posdef(seed, m, n, N, b, lam):
 
