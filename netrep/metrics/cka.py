@@ -2,6 +2,12 @@ import numpy as np
 from sklearn.base import BaseEstimator
 
 class LinearCKA:
+    """
+    Note: This function differs from the one outlined in
+    Kornblith et al. (2019). It introduces an arccos(.)
+    into the final calculation so that the result satisfies
+    the conditions of a metric.
+    """
 
     def __init__(self, center_columns=True):
         self.center_columns = center_columns

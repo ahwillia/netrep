@@ -1,194 +1,39 @@
 import itertools
 import numpy as np
-from sklearn.utils.validation import check_array, check_random_state
+from scipy.spatial.distance import pdist, squareform
 from tqdm import tqdm
-from scipy.linalg import orthogonal_procrustes
-from netrep.metrics import LinearMetric
+from netrep.utils import angular_distance
+from netrep.barycenter import alignment
 
-
-def procrustes_average(Xs, random_state=None, tol=1e-3, max_iter=100):
+def cnd_kernel(Xs, Xbar, group="orth", ground_metric="euclidean"):
     """
-    Compute the average of p networks in the Procrustes metric space.
+    Given list of K matrices ('Xs'), returns a K x K conditionally
+    negative definite kernel matrix, found by aligning each
+    matrix to a reference point 'Xbar'.
 
     Parameters
     ----------
-    Xs : list of p matrices, (m x n) ndarrays.
-        Matrix-valued datasets to compare. Rotations are learned
-        and applied in the n-dimensional space.
+    Xs : list of K matrices, (m x n) ndarrays.
+        Matrix-valued datasets to compare.
 
-    random_state : int or np.random.RandomState
-        Specifies the state of the random number generator.
-
-    tol : float
-        Convergence tolerance
-
-    max_iter : int, optional.
-        Maximum number of iterations to apply.
-
-    Returns
-    -------
     Xbar : (m x n) ndarray.
-        Average activation matrix.
-    """
+        Reference point. Each element in 'Xs' is aligned to 'Xbar'
+        before computing pairwise distances.
 
-    # Check input
-    Xs = check_array(Xs, allow_nd=True)
-    if Xs.ndim != 3:
-        raise ValueError(
-            "Expected 3d array with shape"
-            "(n_datasets x n_observations x n_features), but "
-            "got {}-d array with shape {}".format(Xs.ndim, Xs.shape))
-
-    # If only one matrix is provided, the barycenter is trivial.
-    if Xs.shape[0] == 1:
-        return Xs[0]
-
-    # Initialize barycenter
-    random_state = check_random_state(random_state)
-    indices = random_state.permutation(len(Xs))
-    Xbar = Xs[indices[-1]]
-    X0 = np.empty_like(Xbar)
-
-    # Main loop
-    itercount, n, chg = 0, 1, np.inf
-    while (chg > tol) and (itercount < max_iter):
-        
-        # Save current barycenter for convergence checking.
-        np.copyto(X0, Xbar)
-
-        # Iterate over datasets
-        random_state.shuffle(indices)
-        for i in indices:
-
-            # Align i-th dataset to barycenter.
-            Q, _ = orthogonal_procrustes(Xs[i], Xbar)
-
-            # Take a small step towards aligned representation.
-            Xbar = (n / (n + 1)) * Xbar + (1 / (n + 1)) * (Xs[i] @ Q)
-            n += 1
-
-        # Detect convergence.
-        Q, _ = orthogonal_procrustes(Xbar, X0)
-        chg = np.linalg.norm((Xbar @ Q) - X0) / np.sqrt(Xbar.size)
-
-        # Move to next iteration, with new random ordering over datasets.
-        indices = random_state.permutation(len(Xs))
-        itercount += 1
-
-    return Xbar
-
-
-def procrustes_kmeans(
-        Xs, n_clusters, dist_matrix=None, max_iter=100, random_state=None
-    ):
-    """
-    Perform K-means clustering in the metric space defined by
-    the Procrustes metric.
-
-    Parameters
-    ----------
-    Xs : list of p matrices, (m x n) ndarrays.
-        Matrix-valued datasets to compare. Rotations are learned
-        and applied in the n-dimensional space.
-
-    n_clusters : int
-        Number of clusters to fit.
-
-    dist_matrix : pairwise distances, (p x p) symmetric matrix, optional.
-        Pairwise distances between all p networks. This is used
-        to seed the k-means algorithm by a k-means++ procedure.
-
-    max_iter : int, optional.
-        Maximum number of iterations to apply.
-
-    random_state : int or np.random.RandomState
-        Specifies the state of the random number generator.
-
+    ground_metric : str
+        Specifies ground metric. Should be one of ("angular", "euclidean").
 
     Returns
     -------
-    centroids : (n_clusters x n) ndarray.
-        Cluster centroids.
-
-    labels : length-p ndarray.
-        Vector holding the cluster labels for each network.
-
-    cent_dists : (n_clusters x p) ndarray
-        Matrix holding the distance from each cluster centroid
-        to each network.
+    D : (K x K) ndarray.
+        Matrix of pairwise distances. Note that exp(-lam * D) is a positive
+        semi-definite matrix for any choice of lam >= 0.
     """
-
-    # Initialize random number generator.
-    rs = check_random_state(random_state)
-
-    # Initialize Procrustes metric.
-    proc_metric = LinearMetric(alpha=1.0)
-
-    # Check input.
-    Xs = check_array(Xs, allow_nd=True)
-    if Xs.ndim != 3:
-        raise ValueError(
-            "Expected 3d array with shape"
-            "(n_datasets x n_observations x n_features), but "
-            "got {}-d array with shape {}".format(Xs.ndim, Xs.shape))
-
-    # Initialize pairwise distances between all networks.
-    if dist_matrix is None:
-        dist_matrix = pairwise_distances(proc_metric, Xs, verbose=False)
-
-    # Pick first centroid randomly
-    init_centroid_idx = [rs.choice(len(Xs))]
-    init_dists = dist_matrix[idx[0]] ** 2
-
-    # Pick additional clusters according to k-means++ procedure.
-    for k in range(1, n_clusters):
-        init_centroid_idx.append(
-            rs.choice(len(Xs), p = init_dists / init_dists.sum())
-        )
-        init_dists = np.minimum(
-            init_dists,
-            dist_matrix[init_centroid_idx[-1]] ** 2
-        )
-
-    # Collect centroids.
-    centroids = [np.copy(Xs[i]) for i in idx]
-
-    # Determine cluster labels for each datapoint.
-    labels = np.array(
-        [np.argmin(dist_matrix[j][idx]) for j in range(len(Xs))]
-    )
-
-    # Initialize distance to centroids matrix
-    cent_dists = np.zeros((n_clusters, Xs.shape[0]))
-
-    # Main loop.
-    for i in range(max_iter):
-
-        # Update cluster centroids.
-        for k in range(n_clusters):
-            centroids[k] = procrustes_barycenter(
-                [X for X, c in zip(Xs, labels) if c == k],
-                random_state=rs, max_iter=10,
-            )
-
-        # Compute distance from each datapoint to each centroid.
-        for j in range(len(Xs)):
-            for k, cent in enumerate(centroids):
-                proc_metric.fit(Xs[j], cent)
-                cent_dists[k, j] = proc_metric.score(Xs[j], cent)
-
-        # Compute new cluster labels.
-        new_labels = np.argmin(cent_dists, axis=0)
-
-        # Check convergence.
-        converged = np.all(labels == new_labels)
-        labels = new_labels
-
-        # Break loop if converged.
-        if converged:
-            break
-
-    return centroids, labels, cent_dists
+    Xflat = np.empty((len(Xs), Xbar.size))
+    for i, X in enumerate(Xs):
+        Xflat[i] = (X @ alignment(X, Xbar, group=group)).ravel()
+    m = angular_distance if (ground_metric == "angular") else ground_metric
+    return squareform(pdist(Xflat, metric=m))
 
 
 def pairwise_distances(metric, traindata, testdata=None, verbose=True):

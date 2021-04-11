@@ -67,7 +67,7 @@ class StochasticMetric:
 
     def biased_score(self, X, Y):
         """
-        Compute the inflated distance score between 
+        Compute the inflated distance score.
         """
         Xm, Ym = _flatten_all_pairs(X, Y)
         resid = Xm - (Ym @ self.Q_) - self.bias_[None, :]

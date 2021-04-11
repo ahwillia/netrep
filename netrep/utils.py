@@ -36,7 +36,7 @@ def angular_distance(X, Y):
     -------
     distance : float between zero and pi.
     """
-    normalizer = np.linalg.norm(X, "fro") * np.linalg.norm(Y, "fro")
+    normalizer = np.linalg.norm(X.ravel()) * np.linalg.norm(Y.ravel())
     corr = np.dot(X.ravel(), Y.ravel()) / normalizer
     # numerical precision issues require us to clip inputs to arccos
     return np.arccos(np.clip(corr, -1.0, 1.0))

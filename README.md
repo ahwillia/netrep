@@ -228,3 +228,4 @@ Kriegeskorte, N., Mur, M., & Bandettini, P. A. (2008). [Representational similar
 Maheswaranathan, N., Williams, A. H., Golub, M. D., Ganguli, S., & Sussillo, D. (2019). [Universality and individuality in neural dynamics across large populations of recurrent networks](https://arxiv.org/abs/1907.08549). Advances in neural information processing systems, 2019, 15629.
 
 Raghu, M., Gilmer, J., Yosinski, J., & Sohl-Dickstein, J. (2017). [Svcca: Singular vector canonical correlation analysis for deep learning dynamics and interpretability](https://arxiv.org/abs/1706.05806). arXiv preprint arXiv:1706.05806.
+

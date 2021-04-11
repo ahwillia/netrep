@@ -1,5 +1,5 @@
 """
-Tests deterministic metrics.
+Tests metrics between network representations.
 """
 import pytest
 import numpy as np
@@ -182,27 +182,3 @@ def test_permutation(seed, center_columns, m, n):
     assert abs(metric.fit(X, Y).score(X, Y)) < TOL
 
 
-
-@pytest.mark.parametrize('seed', [1, 2, 3])
-@pytest.mark.parametrize('m', [4, 31])
-@pytest.mark.parametrize('n', [2, 5, 30])
-@pytest.mark.parametrize('N', [5, 20])
-@pytest.mark.parametrize('b', np.logspace(-2, 0, 4))
-@pytest.mark.parametrize('lam', [1e-2, 1e-1, 1e0, 1e1])
-def test_laplacian_kernel_posdef(seed, m, n, N, b, lam):
-
-    # Set random seed, sample random datasets
-    rs = check_random_state(seed)
-    X0 = rs.randn(m, n)
-    Xs = [b * X0 + (1 - b) * rs.randn(m, n) for _ in range(N)]
-
-    # Compute pairwise distances.
-    #  --> Note, alpha < 1 may not be pos. def.?
-    metric = LinearMetric(alpha=1.0, center_columns=True)
-    D = pairwise_distances(metric, Xs, verbose=False)
-
-    # Compute kernel matrix.
-    K = np.exp(-lam * D)
-    
-    # Assert positive definite.    
-    assert np.linalg.eigvalsh(K).min() >= -1e-10
