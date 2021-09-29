@@ -4,12 +4,9 @@ In neuroscience and in deep learning, quantifying the (dis)similarity of neural 
 
 This code package computes [*metrics*](https://en.wikipedia.org/wiki/Metric_(mathematics)) &mdash; notions of distance that satisfy the [triangle inequality](https://en.wikipedia.org/wiki/Triangle_inequality)&mdash;between neural representations. If we record the activity of `K` networks, we can compute all pairwise distances and collect them into a `K × K` distance matrix. The triangle inequality ensures that all of these distance relationships are, in some sense, self-consistent. This self-consistency enables us to apply off-the-shelf algorithms for clustering and dimensionality reduction, which are available through many open-source packages such as [scikit-learn](https://scikit-learn.org/).
 
-We recently recorded a [**7 minute summary on youtube**](https://www.youtube.com/watch?v=Lt_Vo-tQcW0) for the [Cosyne 2021 conference](http://www.cosyne.org/). We are currently preparing a paper that considers applications of these methods in deep learning.
+We recently recorded a [**7 minute summary on youtube**](https://www.youtube.com/watch?v=Lt_Vo-tQcW0) for the [Cosyne 2021 conference](http://www.cosyne.org/).
 
-<a href="https://www.youtube.com/watch?v=Lt_Vo-tQcW0"><img src="https://user-images.githubusercontent.com/636625/109397634-7b3ad400-78ec-11eb-8feb-40e0bd00ac7f.png" alt="Short Summary" style="width:42px;height:42px;"></a>
-
-
-***IMPORTANT NOTE:** We are actively working on this project and would love to hear your feedback. Please reach out to [ahwillia@stanford.edu](mailto:ahwillia@stanford.edu) to let us know that you're interested in using this code.*
+<a href="https://www.youtube.com/watch?v=Lt_Vo-tQcW0"><img src="https://user-images.githubusercontent.com/636625/109397634-7b3ad400-78ec-11eb-8feb-40e0bd00ac7f.png" alt="Short Summary" style="width:800px;"></a>
 
 ## A short and preliminary guide
 
