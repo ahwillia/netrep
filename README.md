@@ -1,4 +1,6 @@
-# netrep
+# Generalized Shape Metrics on Neural Representations
+
+![Generalized Shape Metrics on Neural Representations](https://user-images.githubusercontent.com/636625/139737239-5e3054fe-0465-4c9b-b148-a43acc62aa8e.png)
 
 In neuroscience and in deep learning, quantifying the (dis)similarity of neural representations across networks is a topic of substantial interest.
 
