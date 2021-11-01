@@ -2,11 +2,24 @@
 
 In neuroscience and in deep learning, quantifying the (dis)similarity of neural representations across networks is a topic of substantial interest.
 
-This code package computes [*metrics*](https://en.wikipedia.org/wiki/Metric_(mathematics)) &mdash; notions of distance that satisfy the [triangle inequality](https://en.wikipedia.org/wiki/Triangle_inequality)&mdash;between neural representations. If we record the activity of `K` networks, we can compute all pairwise distances and collect them into a `K × K` distance matrix. The triangle inequality ensures that all of these distance relationships are, in some sense, self-consistent. This self-consistency enables us to apply off-the-shelf algorithms for clustering and dimensionality reduction, which are available through many open-source packages such as [scikit-learn](https://scikit-learn.org/).
+This code package computes [*metrics*](https://en.wikipedia.org/wiki/Metric_(mathematics)) &mdash; notions of distance that satisfy the [triangle inequality](https://en.wikipedia.org/wiki/Triangle_inequality) &mdash; between neural representations. If we record the activity of `K` networks, we can compute all pairwise distances and collect them into a `K × K` distance matrix. The triangle inequality ensures that all of these distance relationships are, in some sense, self-consistent. This self-consistency enables us to apply off-the-shelf algorithms for clustering and dimensionality reduction, which are available through many open-source packages such as [scikit-learn](https://scikit-learn.org/).
 
-We recently recorded a [**7 minute summary on youtube**](https://www.youtube.com/watch?v=Lt_Vo-tQcW0) for the [Cosyne 2021 conference](http://www.cosyne.org/).
+We published a [**conference paper (Neurips '21)**](https://arxiv.org/abs/2110.14739) describing these ideas.
 
-<a href="https://www.youtube.com/watch?v=Lt_Vo-tQcW0"><img src="https://user-images.githubusercontent.com/636625/109397634-7b3ad400-78ec-11eb-8feb-40e0bd00ac7f.png" alt="Short Summary" style="width:800px;"></a>
+```
+@inproceedings{neural_shape_metrics,
+  author = {Alex H. Williams and Erin Kunz and Simon Kornblith and Scott W. Linderman},
+  title = {Generalized Shape Metrics on Neural Representations},
+  year = {2021},
+  booktitle = {Advances in Neural Information Processing Systems},
+  volume = {34},
+  url = {https://arxiv.org/abs/2110.14739}
+}
+```
+
+We also presented an early version of this work at Cosyne (see [**7 minute summary on youtube**](https://www.youtube.com/watch?v=Lt_Vo-tQcW0)) in early 2021.
+
+**Note:** This research code remains a work-in-progress to some extent. It could use more documentation and examples. Please use at your own risk and reach out to us (alex.h.willia@gmail.com) if you have questions.
 
 ## A short and preliminary guide
 
