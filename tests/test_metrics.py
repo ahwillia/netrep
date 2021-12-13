@@ -3,9 +3,8 @@ Tests metrics between network representations.
 """
 import pytest
 import numpy as np
-from netrep.metrics import LinearMetric, PermutationMetric #, KernelizedMetric
+from netrep.metrics import LinearMetric, PermutationMetric
 from netrep.utils import angular_distance, rand_orth
-from netrep.multiset import pairwise_distances
 from numpy.testing import assert_array_almost_equal
 from sklearn.utils.validation import check_random_state
 
@@ -121,27 +120,6 @@ def test_principal_angles(seed, m, n):
     # Fit model, assert two approaches match.
     metric = LinearMetric(alpha=1.0, center_columns=False).fit(X, Y)
     assert abs(dist_1 - metric.score(X, Y)) < TOL
-
-
-# @pytest.mark.parametrize('seed', [1, 2, 3])
-# @pytest.mark.parametrize('alpha', [0.0, 0.5, 1.0])
-# @pytest.mark.parametrize('m', [100])
-# @pytest.mark.parametrize('n', [10])
-# def test_linear_kernelized_procrustes(seed, alpha, m, n):
-    
-#     rs = check_random_state(seed)
-#     X = rs.randn(m, n)
-#     Y = rs.randn(m, n)
-
-#     metric_1 = LinearMetric(alpha=alpha, center_columns=True)
-#     metric_2 = KernelizedMetric(alpha=alpha, kernel="linear")
-
-#     tX1, tY1 = metric_1.fit_transform(X, Y)
-#     tX2, tY2 = metric_2.fit_transform(X, Y)
-
-#     dist_1 = angular_distance(*metric_1.fit_transform(X, Y))
-#     dist_2 = angular_distance(*metric_2.fit_transform(X, Y))
-#     assert abs(dist_1 - dist_2) < TOL
 
 
 @pytest.mark.parametrize('seed', [1, 2, 3])

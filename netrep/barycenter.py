@@ -52,7 +52,7 @@ def alignment(X, Y, group="orth"):
 def barycenter(
         Xs, group="orth", ground_metric="euclidean",
         random_state=None, tol=1e-3, max_iter=100,
-        warmstart=None
+        warmstart=None, verbose=False, method="streaming"
     ):
     """
     Estimate the average (Karcher/Frechet mean) of p networks in the
@@ -84,6 +84,9 @@ def barycenter(
     warmstart : (m x n) ndarray, optional
         If provided, Xbar is initialized to this estimate.
 
+    verbose : bool
+        If True, print progress.
+
     Returns
     -------
     Xbar : (m x n) ndarray.
@@ -91,14 +94,23 @@ def barycenter(
     """
 
     if ground_metric == "euclidean":
-        return _euclidean_barycenter(Xs, group, random_state, tol, max_iter, warmstart)
+        if method == "streaming":
+            return _euclidean_barycenter_streaming(
+                Xs, group, random_state, tol, max_iter, warmstart, verbose
+            )
+        elif method == "full_batch":
+            return _euclidean_barycenter_full_batch(
+                Xs, group, random_state, tol, max_iter, warmstart, verbose
+            )
     elif ground_metric == "angular":
         raise NotImplementedError("Barycenters with angular distance aren't implemented yet...")
     else:
         raise ValueError("Unexpected value for 'metric' keyword argument.")
 
 
-def _euclidean_barycenter(Xs, group, random_state, tol, max_iter, warmstart):
+def _euclidean_barycenter_full_batch(
+        Xs, group, random_state, tol, max_iter, warmstart, verbose
+    ):
     """
     Parameters
     ----------
@@ -116,6 +128,89 @@ def _euclidean_barycenter(Xs, group, random_state, tol, max_iter, warmstart):
 
     max_iter : int, optional.
         Maximum number of iterations to apply.
+
+    verbose : bool
+        If True, print progress.
+
+    Returns
+    -------
+    Xbar : (m x n) ndarray.
+        Average activation matrix.
+    """
+
+    # Handle simple case of no alignment operation. This is just a classic average.
+    if group == "identity":
+        return np.mean(Xs, axis=0)
+
+    # Check input
+    Xs = check_array(Xs, allow_nd=True)
+    if Xs.ndim != 3:
+        raise ValueError(
+            "Expected 3d array with shape"
+            "(n_datasets x n_observations x n_features), but "
+            "got {}-d array with shape {}".format(Xs.ndim, Xs.shape))
+
+    # If only one matrix is provided, the barycenter is trivial.
+    if Xs.shape[0] == 1:
+        return Xs[0]
+
+    # Check random state and initialize random permutation over networks.
+    rs = check_random_state(random_state)
+
+    # Initialize barycenter.
+    Xbar = Xs[np.random.randint(len(Xs))] if (warmstart is None) else warmstart
+    X0 = np.empty_like(Xbar)
+
+    # Main loop
+    itercount, n, chg = 0, 1, np.inf
+    while (chg > tol) and (itercount < max_iter):
+        
+        # Save current barycenter for convergence checking.
+        np.copyto(X0, Xbar)
+        np.fill(Xbar, 0.0)
+
+        # Iterate over datasets. Align each dataset to last
+        # average (held in X0), take running sum.
+        for x in Xs:
+            Xbar += x @ alignment(x, X0, group=group)
+        Xbar /= len(Xs)
+
+        # Detect convergence.
+        chg = np.linalg.norm(Xbar - X0) / np.sqrt(Xbar.size)
+
+        # Display progress.
+        if verbose:
+            print(f"Iteration {itercount}, Change: {chg}")
+
+        # Move to next iteration, with new random ordering over datasets.
+        itercount += 1
+
+    return Xbar
+
+
+def _euclidean_barycenter_streaming(
+        Xs, group, random_state, tol, max_iter, warmstart, verbose
+    ):
+    """
+    Parameters
+    ----------
+    Xs : list of p matrices, (m x n) ndarrays.
+        Matrix-valued datasets to compare. Rotations are learned
+        and applied in the n-dimensional space.
+
+    group : str
+        Specifies group of ("orth", "perm", "roll", "identity")
+
+    random_state : np.random.RandomState
+
+    tol : float
+        Convergence tolerance
+
+    max_iter : int, optional.
+        Maximum number of iterations to apply.
+
+    verbose : bool
+        If True, print progress.
 
     Returns
     -------
@@ -159,14 +254,18 @@ def _euclidean_barycenter(Xs, group, random_state, tol, max_iter, warmstart):
 
             # Align i-th dataset to barycenter.
             Q = alignment(Xs[i], Xbar, group=group)
+            XQ = Xs[i] @ Q
 
             # Take a small step towards aligned representation.
-            Xbar = (n / (n + 1)) * Xbar + (1 / (n + 1)) * (Xs[i] @ Q)
+            Xbar = (n / (n + 1)) * Xbar + (1 / (n + 1)) * XQ
             n += 1
 
         # Detect convergence.
-        Q = alignment(Xs[i], Xbar, group=group)
-        chg = np.linalg.norm((Xbar @ Q) - X0) / np.sqrt(Xbar.size)
+        chg = np.linalg.norm(Xbar - X0) / np.sqrt(Xbar.size)
+
+        # Display progress.
+        if verbose:
+            print(f"Iteration {itercount}, Change: {chg}")
 
         # Move to next iteration, with new random ordering over datasets.
         rs.shuffle(indices)

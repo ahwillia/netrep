@@ -26,10 +26,38 @@ class PermutationMetric(BaseEstimator):
         self.center_columns = center_columns
         self.zero_pad = zero_pad
 
+    def partial_fit(self, X):
+        """
+        Computes partial whitening transformation for a 
+        """
+        if self.center_columns:
+            mx = np.mean(X, axis=0)
+            Xphi = X - mx[None, :]
+        else:
+            mx = np.zeros(X.shape[1])
+            Xphi = X
+        return (mx, Xphi)
+
+    def finalize_fit(self, cache_X, cache_Y):
+        """
+        Takes outputs of 'partial_fit' function and finishes fitting
+        permutation matrices (Px, Py) and bias terms (mx, my) to
+        align a pair of neural activations.
+        """
+
+        # Extract whitened representations.
+        self.mx_, X = cache_X
+        self.my_, Y = cache_Y
+
+        # Fit optimal permutation matrices.
+        self.Px_, self.Py_ = lsa(X.T @ Y, maximize=True)
+
+        return self
+
     def fit(self, X, Y):
         """
-        Fits transformation matrices (Wx, Wy) and, if
-        center_columns == True, bias terms (mx_, my_).
+        Fits permutation matrices (Px, Py) and bias terms (mx, my)
+        to align a pair of neural activation matrices.
 
         Parameters
         ----------
@@ -38,18 +66,11 @@ class PermutationMetric(BaseEstimator):
         Y : ndarray
             (num_samples x num_neurons) matrix of activations.
         """
-
         X, Y = check_equal_shapes(X, Y, nd=2, zero_pad=self.zero_pad)
-
-        if self.center_columns:
-            self.mx_ = mx = np.mean(X, axis=0)
-            self.my_ = my = np.mean(Y, axis=0)
-            X = X - mx[None, :]
-            Y = Y - mx[None, :]
-
-        self.Px_, self.Py_ = lsa(X.T @ Y, maximize=True)
-
-        return self
+        return self.finalize_fit(
+            self.partial_fit(X),
+            self.partial_fit(Y)
+        )
 
     def transform(self, X, Y):
         """

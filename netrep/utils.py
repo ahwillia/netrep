@@ -8,6 +8,7 @@ from sklearn.utils.validation import check_random_state
 from netrep.validation import check_equal_shapes
 from sklearn.metrics.pairwise import pairwise_kernels
 from scipy.stats import ortho_group
+from scipy.spatial.distance import squareform
 
 
 def centered_kernel(*args, **kwargs):

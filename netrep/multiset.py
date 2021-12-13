@@ -4,12 +4,56 @@ from scipy.spatial.distance import pdist, squareform
 from tqdm import tqdm
 from netrep.utils import angular_distance
 from netrep.barycenter import alignment
+from sklearn.decomposition import PCA
+from sklearn.utils.validation import check_random_state
 
-def cnd_kernel(Xs, Xbar, group="orth", ground_metric="euclidean"):
+
+def frechet_mean(
+        Xs, tol=1e-5, max_iter=10, verbose=True,
+        random_state=None, group="orth"
+    ):
+
+    # Initialize.
+    rs = check_random_state(random_state)
+    num_X = Xs.shape[0]
+    Xbar = Xs[rs.choice(num_X)]
+
+    # Compute initial loss.
+    Zs = np.copy(Xs)
+    resid = (Xbar[None, :, :] - Zs).ravel()
+    losses = [resid @ resid]
+    if verbose:
+        print(f"Initial Loss: {losses[-1]}")
+
+    # Run iterations.
+    for i in range(max_iter):
+
+        # Update alignments.
+        for j in range(num_X):
+            Zs[j] = Xs[j] @ alignment(Xs[j], Xbar, group=group)
+        
+        # Update Frechet mean.
+        Xbar = np.mean(Zs, axis=0)
+
+        # Compute loss.
+        resid = (Xbar[None, :, :] - Zs).ravel()
+        losses.append(resid @ resid)
+        if verbose:
+            print(f"Loss: {losses[-1]}")
+
+        # Check convergence
+        if ((losses[-2] - losses[-1]) / losses[-1]) < tol:
+            break
+
+    return Xbar, Zs
+
+
+def euclidean_tangent_space(Xs, Xbar, group="orth"):
     """
-    Given list of K matrices ('Xs'), returns a K x K conditionally
-    negative definite kernel matrix, found by aligning each
-    matrix to a reference point 'Xbar'.
+    Transform list of K matrices ('Xs'), into an approximate
+    Euclidean space (tangent space) at a point Xbar.
+
+    Note: assumes that the ground metric is Euclidean.
 
     Parameters
     ----------
@@ -17,26 +61,28 @@ def cnd_kernel(Xs, Xbar, group="orth", ground_metric="euclidean"):
         Matrix-valued datasets to compare.
 
     Xbar : (m x n) ndarray.
-        Reference point. Each element in 'Xs' is aligned to 'Xbar'
-        before computing pairwise distances.
+        Reference point. Each element in 'Xs' is aligned to 'Xbar'.
 
-    ground_metric : str
-        Specifies ground metric. Should be one of ("angular", "euclidean").
+    group : str
+        Specifies group of alignment operations.
 
     Returns
     -------
-    D : (K x K) ndarray.
-        Matrix of pairwise distances. Note that exp(-lam * D) is a positive
-        semi-definite matrix for any choice of lam >= 0.
+    Xs_tang : list of K matrices, (m x n) ndarrays.
+        Matrix-valued datasets in tangent space. These are the
+        residuals of each element in 'Xs' after alignment to
+        'Xbar'.
     """
-    Xflat = np.empty((len(Xs), Xbar.size))
+    Xs_tang = np.empty((len(Xs), Xbar.shape[0], Xbar.shape[1]))
     for i, X in enumerate(Xs):
-        Xflat[i] = (X @ alignment(X, Xbar, group=group)).ravel()
-    m = angular_distance if (ground_metric == "angular") else ground_metric
-    return squareform(pdist(Xflat, metric=m))
+        Xs_tang[i] = Xbar - (X @ alignment(X, Xbar, group=group))
+    return Xs_tang
 
 
-def pairwise_distances(metric, traindata, testdata=None, verbose=True):
+def pairwise_distances(
+        metric, traindata, testdata=None, verbose=True,
+        enable_caching=False
+    ):
     """
     Compute pairwise distances between a collection of
     networks. Similar to ``scipy.spatial.distance.pdist``.
@@ -76,12 +122,19 @@ def pairwise_distances(metric, traindata, testdata=None, verbose=True):
     if verbose:
         pbar = tqdm(total=(m * (m - 1)) // 2)
 
+    # Fit partial whitening transforms to each dataset.
+    if enable_caching:
+        caches = [metric.partial_fit(trn) for trn in traindata]
+
     # Compute all pairwise distances.
     for i in range(m):
         for j in range(i + 1, m):
 
             # Fit metric.
-            metric.fit(traindata[i], traindata[j])
+            if enable_caching:
+                metric.finalize_fit(caches[i], caches[j])
+            else:
+                metric.fit(traindata[i], traindata[j])
 
             # Evaluate distance on the training set.
             D_train[i, j] = metric.score(traindata[i], traindata[j])

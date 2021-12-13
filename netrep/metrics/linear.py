@@ -7,7 +7,10 @@ from sklearn.base import BaseEstimator
 
 class LinearMetric(BaseEstimator):
 
-    def __init__(self, alpha=1.0, center_columns=True, zero_pad=True):
+    def __init__(
+            self, alpha=1.0, center_columns=True, zero_pad=True,
+            score_method="angular"
+        ):
         """
         Parameters
         ----------
@@ -27,20 +30,60 @@ class LinearMetric(BaseEstimator):
             matrix is zero-padded prior to allow for an alignment.
             Some amount of regularization (alpha > 0) is required to
             align zero-padded representations.
+
+        score_method : {'angular','euclidean'}, default='angular'
+            String specifying ground metric.
         """
 
         if (alpha > 1) or (alpha < 0):
             raise ValueError(
                 "Regularization parameter `alpha` must be between zero and one.")
 
+        if score_method not in ("euclidean", "angular"):
+            raise ValueError(
+                "Expected `score_method` parameter to be in {'angular','euclidean'}. " +
+                f"Found instead score_method == '{score_method}'."
+            )
+
         self.alpha = alpha
         self.center_columns = center_columns
         self.zero_pad = zero_pad
+        self.score_method = score_method
+
+    def partial_fit(self, X):
+        """
+        Computes partial whitening transformation for a 
+        """
+        if self.center_columns:
+            mx = np.mean(X, axis=0)
+            Xw, Zx = whiten(X - mx[None, :], self.alpha, preserve_variance=True)
+        else:
+            mx = np.zeros(X.shape[1])
+            Xw, Zx = whiten(X, self.alpha, preserve_variance=True)
+        return (mx, Xw, Zx)
+
+    def finalize_fit(self, cache_X, cache_Y):
+        """
+        Takes outputs of 'partial_fit' function and finishes fitting
+        transformation matrices (Wx, Wy) and bias terms (mx, my) to
+        align a pair of neural activations.
+        """
+
+        # Extract whitened representations.
+        self.mx_, Xw, Zx = cache_X
+        self.my_, Yw, Zy = cache_Y
+
+        # Fit optimal rotational alignment.
+        U, _, Vt = np.linalg.svd(Xw.T @ Yw)
+        self.Wx_ = Zx @ U
+        self.Wy_ = Zy @ Vt.T
+
+        return self
 
     def fit(self, X, Y):
         """
-        Fits transformation matrices (Wx, Wy) and, if
-        center_columns == True, bias terms (mx_, my_).
+        Fits transformation matrices (Wx, Wy) and bias terms (mx, my)
+        to align a pair of neural activation matrices.
 
         Parameters
         ----------
@@ -49,30 +92,11 @@ class LinearMetric(BaseEstimator):
         Y : ndarray
             (num_samples x num_neurons) matrix of activations.
         """
-
         X, Y = check_equal_shapes(X, Y, nd=2, zero_pad=self.zero_pad)
-        n_obs, n_feats = X.shape
-
-        if self.center_columns:
-            # Subtract off mean before whitening.
-            self.mx_ = mx = np.mean(X, axis=0)
-            self.my_ = my = np.mean(Y, axis=0)
-            Xw, Zx = whiten(X - mx[None, :], self.alpha, preserve_variance=True)
-            Yw, Zy = whiten(Y - my[None, :], self.alpha, preserve_variance=True)
-
-        else:
-            # Don't subtract off mean.
-            Xw, Zx = whiten(X, self.alpha, preserve_variance=True)
-            Yw, Zy = whiten(Y, self.alpha, preserve_variance=True)
-
-        # Compute SVD of cross-covariance matrix.
-        U, _, Vt = np.linalg.svd(Xw.T @ Yw)
-
-        # Compute alignment transformations.
-        self.Wx_ = Zx @ U
-        self.Wy_ = Zy @ Vt.T
-
-        return self
+        return self.finalize_fit(
+            self.partial_fit(X),
+            self.partial_fit(Y)
+        )
 
     def transform(self, X, Y):
         """
@@ -119,27 +143,12 @@ class LinearMetric(BaseEstimator):
         dist : float
             Angular distance between X and Y.
         """
-        return angular_distance(*self.transform(X, Y))
-
-    def score_euclidean(self, X, Y):
-        """
-        Computes the average Euclidean distance between the
-        rows of X and Y in the aligned space.
-
-        Parameters
-        ----------
-        X : ndarray
-            (num_samples x num_neurons) matrix of activations.
-        Y : ndarray
-            (num_samples x num_neurons) matrix of activations.
-
-        Returns
-        -------
-        dist : float
-            Angular distance between X and Y.
-        """
-        resid = np.subtract(*self.transform(X, Y))
-        return np.mean(np.linalg.norm(resid, axis=1))
+        if self.score_method == "angular":
+            return angular_distance(*self.transform(X, Y))
+        elif self.score_method == "euclidean":
+            return np.mean(np.linalg.norm(
+                np.subtract(*self.transform(X, Y)), axis=1
+            ))
 
     def transform_X(self, X):
         """Transform X into the aligned space."""
