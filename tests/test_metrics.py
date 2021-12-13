@@ -5,7 +5,6 @@ import pytest
 import numpy as np
 from netrep.metrics import LinearMetric, PermutationMetric
 from netrep.utils import angular_distance, rand_orth
-from numpy.testing import assert_array_almost_equal
 from sklearn.utils.validation import check_random_state
 
 TOL = 1e-6
