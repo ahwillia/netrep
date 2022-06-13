@@ -24,3 +24,6 @@ pip-log.txt
 
 # Jupyter
 .ipynb_checkpoints
+
+# VirtualEnv
+env/

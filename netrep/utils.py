@@ -1,7 +1,7 @@
 """
 Miscellaneous helper functions.
 """
-import numba
+# import numba
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
 from sklearn.utils.validation import check_random_state
@@ -255,7 +255,7 @@ def struc_orth_matvec(Ds, a, transpose=False):
     a /= np.sqrt(a.size) ** (1 + len(Ds))
 
 
-@numba.jit(nopython=True)
+# @numba.jit(nopython=True)
 def fwht(a):
     """
     In-place Fast Walsh–Hadamard Transform.
