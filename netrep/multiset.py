@@ -1,51 +1,6 @@
 import itertools
 import numpy as np
-from scipy.spatial.distance import pdist, squareform
 from tqdm import tqdm
-from netrep.utils import angular_distance
-from netrep.barycenter import alignment
-from sklearn.decomposition import PCA
-from sklearn.utils.validation import check_random_state
-
-
-def frechet_mean(
-        Xs, tol=1e-5, max_iter=10, verbose=True,
-        random_state=None, group="orth"
-    ):
-
-    # Initialize.
-    rs = check_random_state(random_state)
-    num_X = Xs.shape[0]
-    Xbar = Xs[rs.choice(num_X)]
-
-    # Compute initial loss.
-    Zs = np.copy(Xs)
-    resid = (Xbar[None, :, :] - Zs).ravel()
-    losses = [resid @ resid]
-    if verbose:
-        print(f"Initial Loss: {losses[-1]}")
-
-    # Run iterations.
-    for i in range(max_iter):
-
-        # Update alignments.
-        for j in range(num_X):
-            Zs[j] = Xs[j] @ alignment(Xs[j], Xbar, group=group)
-        
-        # Update Frechet mean.
-        Xbar = np.mean(Zs, axis=0)
-
-        # Compute loss.
-        resid = (Xbar[None, :, :] - Zs).ravel()
-        losses.append(resid @ resid)
-        if verbose:
-            print(f"Loss: {losses[-1]}")
-
-        # Check convergence
-        if ((losses[-2] - losses[-1]) / losses[-1]) < tol:
-            break
-
-    return Xbar, Zs
 
 
 def euclidean_tangent_space(Xs, Xbar, group="orth"):
