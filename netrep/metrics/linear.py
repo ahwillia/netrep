@@ -5,6 +5,7 @@ from netrep.validation import check_equal_shapes
 from numpy.testing import assert_array_almost_equal
 from sklearn.base import BaseEstimator
 
+
 class LinearMetric(BaseEstimator):
 
     def __init__(

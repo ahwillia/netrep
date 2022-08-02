@@ -1,10 +1,8 @@
 import itertools
 import numpy as np
 from tqdm import tqdm
-from scipy.linalg import orthogonal_procrustes
-from scipy.optimize import linear_sum_assignment
-import scipy.sparse
 from sklearn.utils.validation import check_array, check_random_state
+from netrep.utils import align
 
 
 def euclidean_tangent_space(Xs, Xbar, group="orth"):
@@ -34,7 +32,7 @@ def euclidean_tangent_space(Xs, Xbar, group="orth"):
     """
     Xs_tang = np.empty((len(Xs), Xbar.shape[0], Xbar.shape[1]))
     for i, X in enumerate(Xs):
-        Xs_tang[i] = Xbar - (X @ alignment(X, Xbar, group=group))
+        Xs_tang[i] = Xbar - (X @ align(X, Xbar, group=group))
     return Xs_tang
 
 
@@ -207,54 +205,6 @@ def cross_distances(
     return D_train if (D_test is None) else (D_train, D_test)
 
 
-
-def alignment(X, Y, group="orth"):
-    """
-    Return a matrix that optimally aligns 'X' to 'Y'. Note
-    that the optimal alignment is the same for either the
-    angular distance or the Euclidean distance since all
-    alignments come from sub-groups of the orthogonal group.
-
-    Parameters
-    ----------
-    X : (m x n) ndarray.
-        Activation patterns across 'm' inputs and 'n' neurons,
-        sampled from the first network (the one which is transformed
-        by the alignment operation).
-
-    Y : (m x n) ndarray.
-        Activation patterns across 'm' inputs and 'n' neurons,
-        sampled from the second network (the one which is fixed).
-
-    group : str
-        Specifies the set of allowable alignment operations (a group of
-        isometries). Must be one of ("orth", "perm", "identity").
-
-    Returns
-    -------
-    T : (n x n) ndarray or sparse matrix.
-        Linear operator such that 'X @ T' is optimally aligned to 'Y'.
-        Note further that 'Y @ T.transpose()' is optimally aligned to 'X',
-        by symmetry.
-    """
-
-    if group == "orth":
-        return orthogonal_procrustes(X, Y)[0]
-
-    elif group == "perm":
-        ri, ci = linear_sum_assignment(X.T @ Y, maximize=True)
-        n = ri.size
-        return scipy.sparse.csr_matrix(
-            (np.ones(n), (ri, ci)), shape=(n, n)
-        )
-
-    elif group == "identity":
-        return scipy.sparse.eye(X.shape[1])
-
-    else:
-        raise ValueError(f"Specified group '{group}' not recognized.")
-
-
 def frechet_mean(
         Xs, group="orth",
         random_state=None, tol=1e-3, max_iter=100,
@@ -319,7 +269,7 @@ def frechet_mean(
 
     if return_aligned_Xs:
         aligned_Xs = [
-            x @ alignment(x, Xbar, group=group) for x in Xs
+            x @ align(x, Xbar, group=group) for x in Xs
         ]
     
     return (Xbar, aligned_Xs) if return_aligned_Xs else Xbar
@@ -389,7 +339,7 @@ def _euclidean_barycenter_full_batch(
         # Iterate over datasets. Align each dataset to last
         # average (held in X0), take running sum.
         for x in Xs:
-            Xbar += x @ alignment(x, X0, group=group)
+            Xbar += x @ align(x, X0, group=group)
 
         Xbar /= len(Xs)
 
@@ -475,7 +425,7 @@ def _euclidean_barycenter_streaming(
         for i in indices:
 
             # Align i-th dataset to barycenter.
-            XQ = Xs[i] @ alignment(Xs[i], X0, group=group)
+            XQ = Xs[i] @ align(Xs[i], X0, group=group)
 
             # Take a small step towards aligned representation.
             Xbar = (n / (n + 1)) * Xbar + (1 / (n + 1)) * XQ

@@ -9,6 +9,67 @@ from netrep.validation import check_equal_shapes
 from sklearn.metrics.pairwise import pairwise_kernels
 from scipy.stats import ortho_group
 from scipy.spatial.distance import squareform
+from scipy.linalg import orthogonal_procrustes
+from scipy.optimize import linear_sum_assignment
+import scipy.sparse
+
+
+def align(X, Y, group="orth"):
+    """
+    Return a matrix that optimally aligns 'X' to 'Y'. Note
+    that the optimal alignment is the same for either the
+    angular distance or the Euclidean distance since all
+    alignments come from sub-groups of the orthogonal group.
+
+    Parameters
+    ----------
+    X : (m x n) ndarray.
+        Activation patterns across 'm' inputs and 'n' neurons,
+        sampled from the first network (the one which is transformed
+        by the alignment operation).
+
+    Y : (m x n) ndarray.
+        Activation patterns across 'm' inputs and 'n' neurons,
+        sampled from the second network (the one which is fixed).
+
+    group : str
+        Specifies the set of allowable alignment operations (a group of
+        isometries). Must be one of ("orth", "perm", "identity").
+
+    Returns
+    -------
+    T : (n x n) ndarray or sparse matrix.
+        Linear operator such that 'X @ T' is optimally aligned to 'Y'.
+        Note further that 'Y @ T.transpose()' is optimally aligned to 'X',
+        by symmetry.
+    """
+
+    if group == "orth":
+        return orthogonal_procrustes(X, Y)[0]
+
+    elif group == "perm":
+        ri, ci = linear_sum_assignment(X.T @ Y, maximize=True)
+        n = ri.size
+        return scipy.sparse.csr_matrix(
+            (np.ones(n), (ri, ci)), shape=(n, n)
+        )
+
+    elif group == "identity":
+        return scipy.sparse.eye(X.shape[1])
+
+    else:
+        raise ValueError(f"Specified group '{group}' not recognized.")
+
+
+def sq_bures_metric(A, B):
+    """
+    Square of the Bures metric between two positive-definite matrices
+    """
+    va, ua = np.linalg.eigh(A)
+    Asq = ua @ (np.sqrt(va[:, None]) * ua.T)
+    return (
+        np.trace(A) + np.trace(B) - 2 * np.sum(np.sqrt(np.linalg.eigvalsh(Asq @ B @ Asq)))
+    )
 
 
 def centered_kernel(*args, **kwargs):
@@ -105,7 +166,10 @@ def whiten(X, alpha, preserve_variance=True, eigval_tol=1e-7):
         the covariance matrix.
 
     alpha : float
-        Regularization parameter, `0 <= alpha <= 1`.
+        Regularization parameter, `0 <= alpha <= 1`. When
+        `alpha == 0`, the data matrix is fully whitened.
+        When `alpha == 1` the data matrix is not transformed
+        (`Z == eye(X.shape[1])`).
 
     preserve_variance : bool
         If True, rescale the (partial) whitening matrix so
