@@ -6,7 +6,7 @@ class GaussianStochasticMetric:
     def __init__(self, group="orth"):
         self.group = group
 
-    def fit(self, X, Y, niter=10):
+    def fit(self, X, Y, niter=100):
         means_X, covs_X = X
         means_Y, covs_Y = Y
 
@@ -23,20 +23,22 @@ class GaussianStochasticMetric:
         sY = np.einsum("ijk,ik,ilk->ijl", uY, np.sqrt(vY), uY)
 
         T = align(means_Y, means_X, group=self.group)
-        Qs = [align(T @ sy, sx, group="orth") for sx, sy in zip(sX, sY)]
+        loss_hist = []
 
         for i in range(niter):
+            Qs = [align(T.T @ sy, sx, group="orth") for sx, sy in zip(sX, sY)]
             A = np.row_stack(
                 [means_X] + [sx for sx in sX]
             )
             r_sY = []
             B = np.row_stack(
-                [means_Y] + [Q @ sy for Q, sy in zip(Qs, sY)]
+                [means_Y] + [Q.T @ sy for Q, sy in zip(Qs, sY)]
             )
-            T = align(A, B, group=self.group)
+            T = align(B, A, group=self.group)
+            loss_hist.append(np.linalg.norm(A - B @ T))
 
         self.T = T
-        self.Qs = Qs
+        self.loss_hist = loss_hist
 
     def transform(self, X, Y):
         means_Y, covs_Y = Y
@@ -52,7 +54,12 @@ class GaussianStochasticMetric:
 
         A = np.sum((mX - mY) ** 2, axis=1)
         B = np.array([sq_bures_metric(sx, sy) for sx, sy in zip(sX, sY)])
-        return np.sqrt(np.mean(A + B))
+        mn = np.mean(A + B)
+        # mn should always be positive but sometimes numerical rounding errors
+        # cause mn to be very slightly negative, causing sqrt(mn) to be nan.
+        # Thus, we take sqrt(abs(mn)) and pass through the sign. Any large
+        # negative outputs should be caught by unit tests.
+        return np.sign(mn) * np.sqrt(abs(mn))
 
 
 

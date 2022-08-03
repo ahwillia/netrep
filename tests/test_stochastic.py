@@ -30,6 +30,32 @@ def test_gaussian_identity_covs(seed, m, n):
 
     # Fit model, assert distance == 0.
     metric = GaussianStochasticMetric(group="orth")
-    metric.fit(X, Y, niter=0)
+    metric.fit(X, Y)
+    assert abs(metric.score(X, Y)) < TOL
+
+
+@pytest.mark.parametrize('seed', [1, 2, 3])
+@pytest.mark.parametrize('m', [10])
+@pytest.mark.parametrize('n', [4])
+def test_gaussian_zero_means(seed, m, n):
+
+    # Set random seed, draw random rotation
+    rs = check_random_state(seed)
+    Q = rand_orth(n, n, random_state=rs)
+    Us = [rand_orth(n, n, random_state=np.random.RandomState(2)) for _ in range(m)]
+    Ps = [u @ np.diag(np.logspace(-1, 1, n)) @ u.T for u in Us]
+
+    # Create a pair of randomly rotated Gaussians.
+    mean_X = np.zeros((m, n))
+    mean_Y = np.zeros((m, n))
+    covs_X = np.array(Ps)
+    covs_Y = np.array([Q @ p @ Q.T for p in Ps])
+
+    X = (mean_X, covs_X)
+    Y = (mean_Y, covs_Y)
+
+    # Fit model, assert distance == 0.
+    metric = GaussianStochasticMetric(group="orth")
+    metric.fit(X, Y)
     assert abs(metric.score(X, Y)) < TOL
 
