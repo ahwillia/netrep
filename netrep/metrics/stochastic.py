@@ -62,20 +62,56 @@ class GaussianStochasticMetric:
         return np.sign(mn) * np.sqrt(abs(mn))
 
 
+class EnergyStochasticMetric:
 
-# means_X = np.random.randn(5, 3)
-# covs_X = np.array([np.eye(3) for _ in range(5)])
-# means_Y = np.random.randn(5, 3)
-# covs_Y = np.array([np.eye(3) for _ in range(5)])
-# X = (means_X, covs_X)
-# Y = (means_Y, covs_X)
+    def __init__(self, group="orth"):
+        self.group = group
 
-# metric = GaussianStochasticMetric()
-# metric.fit(X, Y)
-# print(metric.T)
-# print(align(means_X, means_Y))
+    def fit(self, X, Y, niter=100):
+        # X.shape = (images x repeats x neurons)
+        # Y.shape = (images x repeats x neurons)
 
-class SinkhornStochasticMetric:
-    pass # todo
+        assert X.shape == Y.shape
 
+        m = X.shape[0] * X.shape[1]
+        n = X.shape[-1]
 
+        X = X.reshape(m, n)
+        Y = Y.reshape(m, n)
+
+        w = np.ones(m)
+        loss_hist = []
+
+        for i in range(niter):
+
+            Q = align(w[:, None] * Y, w[:, None] * X, group=self.group)
+
+            resid = np.linalg.norm(X - Y @ Q, axis=1)
+            loss_hist.append(np.mean(resid))
+
+            w = 1 / np.maximum(resid, 1e-6)
+
+        self.Q = Q
+        self.loss_hist = loss_hist
+
+    def transform(self, X, Y):
+        # X.shape = (images x repeats x neurons)
+        # Y.shape = (images x repeats x neurons)
+        assert X.shape == Y.shape
+
+        return X, np.einsum("ijk,kl->ijl", Y, self.Q)
+
+    def score(self, X, Y):
+        X, Y = self.transform(X, Y)
+        Xp = np.roll(X, 1, axis=1)
+        Yp = np.roll(Y, 1, axis=1)
+
+        E_xy = np.mean(np.linalg.norm(X - Y, axis=1))
+        E_xx = np.mean(np.linalg.norm(X - Xp, axis=1))
+        E_yy = np.mean(np.linalg.norm(Y - Yp, axis=1))
+
+        print("E_xy: ", E_xy)
+        print("E_xx: ", E_xx)
+        print("E_yy: ", E_yy)
+
+        return E_xy - .5*(E_xx + E_yy)

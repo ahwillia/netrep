@@ -3,7 +3,7 @@ Tests metrics betwen stochastic neuralrepresentations.
 """
 import pytest
 import numpy as np
-from netrep.metrics import GaussianStochasticMetric
+from netrep.metrics import GaussianStochasticMetric, EnergyStochasticMetric
 from netrep.utils import rand_orth
 from sklearn.utils.validation import check_random_state
 
@@ -84,3 +84,26 @@ def test_gaussian_general(seed, m, n):
     metric = GaussianStochasticMetric(group="orth")
     metric.fit(X, Y)
     assert abs(metric.score(X, Y)) < TOL
+
+
+
+@pytest.mark.parametrize('seed', [1, 2, 3])
+@pytest.mark.parametrize('m', [4])
+@pytest.mark.parametrize('n', [4])
+@pytest.mark.parametrize('p', [500])
+@pytest.mark.parametrize('noise', [0.1])
+def test_energy_distance(seed, m, n, p, noise):
+
+    # Set random seed, draw random rotation
+    rs = check_random_state(seed)
+    Q = rand_orth(n, n, random_state=rs)
+
+    # Create a pair of randomly rotated Gaussians.
+    xm = rs.randn(m, n)
+    X = xm[:, None, :] + noise * rs.randn(m, p, n)
+    Y = (xm @ Q)[:, None, :] + noise * rs.randn(m, p, n)
+
+    # Fit model, assert distance == 0.
+    metric = EnergyStochasticMetric(group="orth")
+    metric.fit(X, Y)
+    assert abs(metric.score(X, Y)) < noise * np.mean(np.linalg.norm(X - Y, axis=(1, 2)))
