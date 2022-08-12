@@ -6,7 +6,7 @@ class GaussianStochasticMetric:
     def __init__(self, group="orth"):
         self.group = group
 
-    def fit(self, X, Y, niter=100):
+    def fit(self, X, Y, niter=100, tol=1e-6):
         means_X, covs_X = X
         means_Y, covs_Y = Y
 
@@ -36,6 +36,10 @@ class GaussianStochasticMetric:
             )
             T = align(B, A, group=self.group)
             loss_hist.append(np.linalg.norm(A - B @ T))
+            if i < 2:
+                pass
+            elif (loss_hist[-2] - loss_hist[-1]) < tol:
+                break
 
         self.T = T
         self.loss_hist = loss_hist
@@ -67,7 +71,7 @@ class EnergyStochasticMetric:
     def __init__(self, group="orth"):
         self.group = group
 
-    def fit(self, X, Y, niter=100):
+    def fit(self, X, Y, niter=100, tol=1e-6):
         # X.shape = (images x repeats x neurons)
         # Y.shape = (images x repeats x neurons)
 
@@ -80,17 +84,17 @@ class EnergyStochasticMetric:
         Y = Y.reshape(m, n)
 
         w = np.ones(m)
-        loss_hist = []
+        loss_hist = [np.mean(np.linalg.norm(X - Y, axis=1))]
 
         for i in range(niter):
-
             Q = align(w[:, None] * Y, w[:, None] * X, group=self.group)
-
             resid = np.linalg.norm(X - Y @ Q, axis=1)
             loss_hist.append(np.mean(resid))
+            w = 1 / np.maximum(np.sqrt(resid), 1e-6)
+            if (loss_hist[-2] - loss_hist[-1]) < tol:
+                break
 
-            w = 1 / np.maximum(resid, 1e-6)
-
+        self.w = w
         self.Q = Q
         self.loss_hist = loss_hist
 
@@ -109,9 +113,5 @@ class EnergyStochasticMetric:
         E_xy = np.mean(np.linalg.norm(X - Y, axis=1))
         E_xx = np.mean(np.linalg.norm(X - Xp, axis=1))
         E_yy = np.mean(np.linalg.norm(Y - Yp, axis=1))
-
-        print("E_xy: ", E_xy)
-        print("E_xx: ", E_xx)
-        print("E_yy: ", E_yy)
 
         return E_xy - .5*(E_xx + E_yy)

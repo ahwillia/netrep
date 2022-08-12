@@ -103,7 +103,9 @@ def test_energy_distance(seed, m, n, p, noise):
     X = xm[:, None, :] + noise * rs.randn(m, p, n)
     Y = (xm @ Q)[:, None, :] + noise * rs.randn(m, p, n)
 
-    # Fit model, assert distance == 0.
+    # Fit model.
     metric = EnergyStochasticMetric(group="orth")
     metric.fit(X, Y)
-    assert abs(metric.score(X, Y)) < noise * np.mean(np.linalg.norm(X - Y, axis=(1, 2)))
+
+    # Check that loss monotonically decreases.
+    assert np.all(np.diff(metric.loss_hist) <= TOL)
