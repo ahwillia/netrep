@@ -1,10 +1,21 @@
 import numpy as np
-from netrep.utils import align, sq_bures_metric
+from netrep.utils import align, sq_bures_metric, rand_orth
 
 class GaussianStochasticMetric:
 
-    def __init__(self, group="orth"):
+    def __init__(self, alpha=1.0, group="orth", init="means"):
+        """
+        alpha : float between 0 and 2
+            When alpha == 0, only uses covariance
+            When alpha == 1, equals Wasserstein
+            When alpha == 2, only uses means (i.e. deterministic metric)
+        """
+
+        if (alpha < 0) or (alpha > 2):
+            raise ValueError("alpha parameter should be between zero and two.")
+        self.alpha = alpha
         self.group = group
+        self.init = init
 
     def fit(self, X, Y, niter=100, tol=1e-6):
         means_X, covs_X = X
@@ -22,17 +33,22 @@ class GaussianStochasticMetric:
         vY, uY = np.linalg.eigh(covs_Y)
         sY = np.einsum("ijk,ik,ilk->ijl", uY, np.sqrt(vY), uY)
 
-        T = align(means_Y, means_X, group=self.group)
+        if self.init == "means":
+            T = align(means_Y, means_X, group=self.group)
+        elif self.init == "rand":
+            T = rand_orth(means_X.shape[1])
         loss_hist = []
 
         for i in range(niter):
             Qs = [align(T.T @ sy, sx, group="orth") for sx, sy in zip(sX, sY)]
             A = np.row_stack(
-                [means_X] + [sx for sx in sX]
+                [self.alpha * means_X] +
+                [(2 - self.alpha) * sx for sx in sX]
             )
             r_sY = []
             B = np.row_stack(
-                [means_Y] + [Q.T @ sy for Q, sy in zip(Qs, sY)]
+                [self.alpha * means_Y] +
+                [Q.T @ ((2 - self.alpha) * sy) for Q, sy in zip(Qs, sY)]
             )
             T = align(B, A, group=self.group)
             loss_hist.append(np.linalg.norm(A - B @ T))
@@ -58,7 +74,7 @@ class GaussianStochasticMetric:
 
         A = np.sum((mX - mY) ** 2, axis=1)
         B = np.array([sq_bures_metric(sx, sy) for sx, sy in zip(sX, sY)])
-        mn = np.mean(A + B)
+        mn = np.mean((self.alpha ** 2) * A + ((2 - self.alpha) ** 2) * B)
         # mn should always be positive but sometimes numerical rounding errors
         # cause mn to be very slightly negative, causing sqrt(mn) to be nan.
         # Thus, we take sqrt(abs(mn)) and pass through the sign. Any large
@@ -84,11 +100,11 @@ class EnergyStochasticMetric:
         Y = Y.reshape(m, n)
 
         w = np.ones(m)
-        loss_hist = [np.mean(np.linalg.norm(X - Y, axis=1))]
+        loss_hist = [np.mean(np.linalg.norm(X - Y, axis=-1))]
 
         for i in range(niter):
             Q = align(w[:, None] * Y, w[:, None] * X, group=self.group)
-            resid = np.linalg.norm(X - Y @ Q, axis=1)
+            resid = np.linalg.norm(X - Y @ Q, axis=-1)
             loss_hist.append(np.mean(resid))
             w = 1 / np.maximum(np.sqrt(resid), 1e-6)
             if (loss_hist[-2] - loss_hist[-1]) < tol:
@@ -110,8 +126,8 @@ class EnergyStochasticMetric:
         Xp = np.roll(X, 1, axis=1)
         Yp = np.roll(Y, 1, axis=1)
 
-        E_xy = np.mean(np.linalg.norm(X - Y, axis=1))
-        E_xx = np.mean(np.linalg.norm(X - Xp, axis=1))
-        E_yy = np.mean(np.linalg.norm(Y - Yp, axis=1))
+        E_xy = np.mean(np.linalg.norm(X - Y, axis=-1))
+        E_xx = np.mean(np.linalg.norm(X - Xp, axis=-1))
+        E_yy = np.mean(np.linalg.norm(Y - Yp, axis=-1))
 
         return E_xy - .5*(E_xx + E_yy)

@@ -90,7 +90,7 @@ def test_gaussian_general(seed, m, n):
 @pytest.mark.parametrize('seed', [1, 2, 3])
 @pytest.mark.parametrize('m', [4])
 @pytest.mark.parametrize('n', [4])
-@pytest.mark.parametrize('p', [500])
+@pytest.mark.parametrize('p', [100])
 @pytest.mark.parametrize('noise', [0.1])
 def test_energy_distance(seed, m, n, p, noise):
 
