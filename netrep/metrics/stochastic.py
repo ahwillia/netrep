@@ -1,5 +1,7 @@
+import itertools
 import numpy as np
 from netrep.utils import align, sq_bures_metric, rand_orth
+
 
 class GaussianStochasticMetric:
 
@@ -93,13 +95,17 @@ class EnergyStochasticMetric:
 
         assert X.shape == Y.shape
 
-        m = X.shape[0] * X.shape[1]
-        n = X.shape[-1]
+        r = X.shape[1]
 
-        X = X.reshape(m, n)
-        Y = Y.reshape(m, n)
+        # m = X.shape[0] * X.shape[1]
+        # n = X.shape[-1]
+        # X = X.reshape(m, n)
+        # Y = Y.reshape(m, n)
+        idx = np.array(list(itertools.product(range(r), range(r))))
+        X = np.row_stack([x[idx[:, 0]] for x in X])
+        Y = np.row_stack([y[idx[:, 1]] for y in Y])
 
-        w = np.ones(m)
+        w = np.ones(X.shape[0])
         loss_hist = [np.mean(np.linalg.norm(X - Y, axis=-1))]
 
         for i in range(niter):
@@ -123,11 +129,20 @@ class EnergyStochasticMetric:
 
     def score(self, X, Y):
         X, Y = self.transform(X, Y)
-        Xp = np.roll(X, 1, axis=1)
-        Yp = np.roll(Y, 1, axis=1)
+        m = X.shape[0] # num images
+        n_samples = X.shape[1]
 
-        E_xy = np.mean(np.linalg.norm(X - Y, axis=-1))
-        E_xx = np.mean(np.linalg.norm(X - Xp, axis=-1))
-        E_yy = np.mean(np.linalg.norm(Y - Yp, axis=-1))
+        combs = np.array(list(
+            itertools.combinations(range(n_samples), 2)
+        ))
+        prod = np.array(list(
+            itertools.product(range(n_samples), range(n_samples))
+        ))
+        
+        d_xy, d_xx, d_yy = 0, 0, 0
+        for i in range(m):
+            d_xy += np.mean(np.linalg.norm(X[i][prod[:, 0]] - Y[i][prod[:, 1]], axis=-1))
+            d_xx += np.mean(np.linalg.norm(X[i][combs[:, 0]] - X[i][combs[:, 1]], axis=-1))
+            d_yy += np.mean(np.linalg.norm(Y[i][combs[:, 0]] - Y[i][combs[:, 1]], axis=-1))
 
-        return E_xy - .5*(E_xx + E_yy)
+        return (d_xy / m) - .5*((d_xx / m) + (d_yy / m))
