@@ -1,11 +1,15 @@
 import itertools
 import numpy as np
 from netrep.utils import align, sq_bures_metric, rand_orth
+from sklearn.utils.validation import check_random_state
 
 
 class GaussianStochasticMetric:
 
-    def __init__(self, alpha=1.0, group="orth", init="means"):
+    def __init__(
+            self, alpha=1.0, group="orth", init="means", niter=1000, tol=1e-8,
+            random_state=None, n_restarts=1
+        ):
         """
         alpha : float between 0 and 2
             When alpha == 0, only uses covariance
@@ -18,8 +22,12 @@ class GaussianStochasticMetric:
         self.alpha = alpha
         self.group = group
         self.init = init
+        self.niter = niter
+        self.tol = tol
+        self._rs = check_random_state(random_state)
+        self.n_restarts = n_restarts
 
-    def fit(self, X, Y, niter=100, tol=1e-6):
+    def fit(self, X, Y):
         means_X, covs_X = X
         means_Y, covs_Y = Y
 
@@ -29,38 +37,25 @@ class GaussianStochasticMetric:
         assert means_X.shape[1] == covs_X.shape[1]
         assert means_X.shape[1] == covs_X.shape[2]
 
-        vX, uX = np.linalg.eigh(covs_X)
-        sX = np.einsum("ijk,ik,ilk->ijl", uX, np.sqrt(vX), uX)
-        
-        vY, uY = np.linalg.eigh(covs_Y)
-        sY = np.einsum("ijk,ik,ilk->ijl", uY, np.sqrt(vY), uY)
+        best_loss = np.inf
+        for restart in range(self.n_restarts):
 
-        if self.init == "means":
-            T = align(means_Y, means_X, group=self.group)
-        elif self.init == "rand":
-            T = rand_orth(means_X.shape[1])
-        loss_hist = []
+            if (restart == 0) and (self.init == "means"):
+                init_T = align(means_Y, means_X, group=self.group)
+            elif self.init == "rand":
+                init_T = rand_orth(means_X.shape[1], random_state=self._rs)
 
-        for i in range(niter):
-            Qs = [align(T.T @ sy, sx, group="orth") for sx, sy in zip(sX, sY)]
-            A = np.row_stack(
-                [self.alpha * means_X] +
-                [(2 - self.alpha) * sx for sx in sX]
+            T, loss_hist = _fit_gaussian_alignment(
+                means_X, means_Y, covs_X, covs_Y, init_T,
+                self.alpha, self.group, self.niter, self.tol
             )
-            r_sY = []
-            B = np.row_stack(
-                [self.alpha * means_Y] +
-                [Q.T @ ((2 - self.alpha) * sy) for Q, sy in zip(Qs, sY)]
-            )
-            T = align(B, A, group=self.group)
-            loss_hist.append(np.linalg.norm(A - B @ T))
-            if i < 2:
-                pass
-            elif (loss_hist[-2] - loss_hist[-1]) < tol:
-                break
+            if best_loss > loss_hist[-1]:
+                best_loss = loss_hist[-1]
+                best_T = T
 
-        self.T = T
+        self.T = best_T
         self.loss_hist = loss_hist
+        return self
 
     def transform(self, X, Y):
         means_Y, covs_Y = Y
@@ -76,7 +71,7 @@ class GaussianStochasticMetric:
 
         A = np.sum((mX - mY) ** 2, axis=1)
         B = np.array([sq_bures_metric(sx, sy) for sx, sy in zip(sX, sY)])
-        mn = np.mean((self.alpha ** 2) * A + ((2 - self.alpha) ** 2) * B)
+        mn = np.mean(self.alpha * A + (2 - self.alpha) * B)
         # mn should always be positive but sometimes numerical rounding errors
         # cause mn to be very slightly negative, causing sqrt(mn) to be nan.
         # Thus, we take sqrt(abs(mn)) and pass through the sign. Any large
@@ -146,3 +141,36 @@ class EnergyStochasticMetric:
             d_yy += np.mean(np.linalg.norm(Y[i][combs[:, 0]] - Y[i][combs[:, 1]], axis=-1))
 
         return (d_xy / m) - .5*((d_xx / m) + (d_yy / m))
+
+
+
+def _fit_gaussian_alignment(
+        means_X, means_Y, covs_X, covs_Y, T, alpha, group, niter, tol
+    ):
+    vX, uX = np.linalg.eigh(covs_X)
+    sX = np.einsum("ijk,ik,ilk->ijl", uX, np.sqrt(vX), uX)
+    
+    vY, uY = np.linalg.eigh(covs_Y)
+    sY = np.einsum("ijk,ik,ilk->ijl", uY, np.sqrt(vY), uY)
+
+    loss_hist = []
+
+    for i in range(niter):
+        Qs = [align(T.T @ sy, sx, group="orth") for sx, sy in zip(sX, sY)]
+        A = np.row_stack(
+            [alpha * means_X] +
+            [(2 - alpha) * sx for sx in sX]
+        )
+        r_sY = []
+        B = np.row_stack(
+            [alpha * means_Y] +
+            [Q.T @ ((2 - alpha) * sy) for Q, sy in zip(Qs, sY)]
+        )
+        T = align(B, A, group=group)
+        loss_hist.append(np.linalg.norm(A - B @ T))
+        if i < 2:
+            pass
+        elif (loss_hist[-2] - loss_hist[-1]) < tol:
+            break
+
+    return T, loss_hist
