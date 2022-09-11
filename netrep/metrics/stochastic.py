@@ -8,7 +8,7 @@ class GaussianStochasticMetric:
 
     def __init__(
             self, alpha=1.0, group="orth", init="means", niter=1000, tol=1e-8,
-            random_state=None, n_restarts=1
+            random_state=None, n_restarts=5
         ):
         """
         alpha : float between 0 and 2
