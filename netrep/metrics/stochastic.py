@@ -26,7 +26,7 @@ class GaussianStochasticMetric:
         self.tol = tol
         self._rs = check_random_state(random_state)
         self.n_restarts = n_restarts
-        if self.init == "mean":
+        if self.init == "means":
             assert n_restarts == 1
 
     def fit(self, X, Y):
