@@ -8,7 +8,7 @@ class GaussianStochasticMetric:
 
     def __init__(
             self, alpha=1.0, group="orth", init="means", niter=1000, tol=1e-8,
-            random_state=None, n_restarts=5
+            random_state=None, n_restarts=1
         ):
         """
         alpha : float between 0 and 2
@@ -26,6 +26,8 @@ class GaussianStochasticMetric:
         self.tol = tol
         self._rs = check_random_state(random_state)
         self.n_restarts = n_restarts
+        if self.init == "mean":
+            assert n_restarts == 1
 
     def fit(self, X, Y):
         means_X, covs_X = X
@@ -40,7 +42,7 @@ class GaussianStochasticMetric:
         best_loss = np.inf
         for restart in range(self.n_restarts):
 
-            if (restart == 0) and (self.init == "means"):
+            if self.init == "means":
                 init_T = align(means_Y, means_X, group=self.group)
             elif self.init == "rand":
                 init_T = rand_orth(means_X.shape[1], random_state=self._rs)
