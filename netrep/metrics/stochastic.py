@@ -84,10 +84,12 @@ class GaussianStochasticMetric:
 
 class EnergyStochasticMetric:
 
-    def __init__(self, group="orth"):
+    def __init__(self, group="orth", niter=100, tol=1e-6):
         self.group = group
+        self.niter = niter
+        self.tol = tol
 
-    def fit(self, X, Y, niter=100, tol=1e-6):
+    def fit(self, X, Y):
         # X.shape = (images x repeats x neurons)
         # Y.shape = (images x repeats x neurons)
 
@@ -106,12 +108,12 @@ class EnergyStochasticMetric:
         w = np.ones(X.shape[0])
         loss_hist = [np.mean(np.linalg.norm(X - Y, axis=-1))]
 
-        for i in range(niter):
+        for i in range(self.niter):
             Q = align(w[:, None] * Y, w[:, None] * X, group=self.group)
             resid = np.linalg.norm(X - Y @ Q, axis=-1)
             loss_hist.append(np.mean(resid))
             w = 1 / np.maximum(np.sqrt(resid), 1e-6)
-            if (loss_hist[-2] - loss_hist[-1]) < tol:
+            if (loss_hist[-2] - loss_hist[-1]) < self.tol:
                 break
 
         self.w = w
@@ -122,7 +124,6 @@ class EnergyStochasticMetric:
         # X.shape = (images x repeats x neurons)
         # Y.shape = (images x repeats x neurons)
         assert X.shape == Y.shape
-
         return X, contract("ijk,kl->ijl", Y, self.Q)
 
     def score(self, X, Y):
@@ -143,7 +144,7 @@ class EnergyStochasticMetric:
             d_xx += np.mean(np.linalg.norm(X[i][combs[:, 0]] - X[i][combs[:, 1]], axis=-1))
             d_yy += np.mean(np.linalg.norm(Y[i][combs[:, 0]] - Y[i][combs[:, 1]], axis=-1))
 
-        return (d_xy / m) - .5*((d_xx / m) + (d_yy / m))
+        return np.sqrt((d_xy / m) - .5*((d_xx / m) + (d_yy / m)))
 
 
 
