@@ -6,7 +6,16 @@ import pytest
 import numpy as np
 from numpy.testing import assert_array_almost_equal, assert_allclose
 
-from netrep.utils import rand_orth, centered_kernel, fwht, rand_struc_orth, struc_orth_matvec, whiten
+from netrep.utils import (
+    rand_orth,
+    centered_kernel,
+    fwht,
+    rand_struc_orth,
+    struc_orth_matvec,
+    whiten,
+    sq_bures_metric,
+    sq_bures_metric_slow
+)
 
 from sklearn.utils.validation import check_random_state
 from sklearn.metrics.pairwise import pairwise_kernels 
@@ -82,68 +91,86 @@ def test_centered_kernel(seed, m, n):
     assert_array_almost_equal(centered_kernel(X), centered_kernel(X, X))
 
 
-@pytest.mark.parametrize('seed', [1, 2, 3])
-@pytest.mark.parametrize('n', [1, 2, 3, 4, 5])
-def test_fast_hadamard_transform(seed, n):
+# @pytest.mark.parametrize('seed', [1, 2, 3])
+# @pytest.mark.parametrize('n', [1, 2, 3, 4, 5])
+# def test_fast_hadamard_transform(seed, n):
 
-    # Form Hadamard matrix explicitly
-    H = scipy.linalg.hadamard(2 ** n)
+#     # Form Hadamard matrix explicitly
+#     H = scipy.linalg.hadamard(2 ** n)
     
-    # Draw random vector.
-    rs = check_random_state(seed)
-    x = rs.randn(2 ** n)
+#     # Draw random vector.
+#     rs = check_random_state(seed)
+#     x = rs.randn(2 ** n)
 
-    # Perform explicit computation
-    expected = H @ x
+#     # Perform explicit computation
+#     expected = H @ x
 
-    # Check that Fast-Walsh_Hadamard transform matches.
-    fwht(x)  # updates x in-place.
-    assert_array_almost_equal(expected, x)
+#     # Check that Fast-Walsh_Hadamard transform matches.
+#     fwht(x)  # updates x in-place.
+#     assert_array_almost_equal(expected, x)
 
+
+# @pytest.mark.parametrize('seed', [1, 2, 3])
+# @pytest.mark.parametrize('n', [1, 2, 14])
+# @pytest.mark.parametrize('n_transforms', [1, 3, 6])
+# def test_structured_orth(seed, n, n_transforms):
+
+#     # Draw random vectors.
+#     rs = check_random_state(seed)
+#     x = rs.randn(2 ** n)
+#     y = rs.randn(2 ** n)
+
+#     # Compute inner product.
+#     original_inner_prod = np.dot(x, y)
+
+#     # Draw sign flips.
+#     Ds = rand_struc_orth(2 ** n, n_transforms=n_transforms, random_state=rs)
+
+#     # Apply structured orthogonal transformation. If this is
+#     # indeed orthogonal, the inner product should be preserved.
+#     struc_orth_matvec(Ds, x)
+#     struc_orth_matvec(Ds, y)
+
+#     # Check that the inner products match.
+#     assert_allclose(
+#         np.dot(x, y), original_inner_prod, atol=ATOL, rtol=RTOL)
+
+
+# @pytest.mark.parametrize('seed', [1, 2, 3])
+# @pytest.mark.parametrize('n', [1, 2, 14])
+# @pytest.mark.parametrize('n_transforms', [1, 3, 6])
+# def test_structured_orth_inverse(seed, n, n_transforms):
+
+#     # Draw random vectors.
+#     rs = check_random_state(seed)
+#     x = rs.randn(2 ** n)
+#     y = x.copy()
+
+#     # Draw sign flips.
+#     Ds = rand_struc_orth(2 ** n, n_transforms=n_transforms, random_state=rs)
+
+#     # Apply structured orthogonal transformation, and then apply
+#     # the inverse transformation.
+#     struc_orth_matvec(Ds, x)
+#     struc_orth_matvec(Ds, x, transpose=True)
+
+#     # Check that we recover our original vector
+#     assert_allclose(x, y, atol=ATOL, rtol=RTOL)
 
 @pytest.mark.parametrize('seed', [1, 2, 3])
 @pytest.mark.parametrize('n', [1, 2, 14])
-@pytest.mark.parametrize('n_transforms', [1, 3, 6])
-def test_structured_orth(seed, n, n_transforms):
+def test_bures(seed, n):
 
-    # Draw random vectors.
+    # Draw covariances.
     rs = check_random_state(seed)
-    x = rs.randn(2 ** n)
-    y = rs.randn(2 ** n)
-
-    # Compute inner product.
-    original_inner_prod = np.dot(x, y)
-
-    # Draw sign flips.
-    Ds = rand_struc_orth(2 ** n, n_transforms=n_transforms, random_state=rs)
-
-    # Apply structured orthogonal transformation. If this is
-    # indeed orthogonal, the inner product should be preserved.
-    struc_orth_matvec(Ds, x)
-    struc_orth_matvec(Ds, y)
-
-    # Check that the inner products match.
-    assert_allclose(
-        np.dot(x, y), original_inner_prod, atol=ATOL, rtol=RTOL)
-
-
-@pytest.mark.parametrize('seed', [1, 2, 3])
-@pytest.mark.parametrize('n', [1, 2, 14])
-@pytest.mark.parametrize('n_transforms', [1, 3, 6])
-def test_structured_orth_inverse(seed, n, n_transforms):
-
-    # Draw random vectors.
-    rs = check_random_state(seed)
-    x = rs.randn(2 ** n)
-    y = x.copy()
-
-    # Draw sign flips.
-    Ds = rand_struc_orth(2 ** n, n_transforms=n_transforms, random_state=rs)
-
-    # Apply structured orthogonal transformation, and then apply
-    # the inverse transformation.
-    struc_orth_matvec(Ds, x)
-    struc_orth_matvec(Ds, x, transpose=True)
+    X = rs.randn(n, n)
+    Y = rs.randn(n, n)
+    Sx = X @ X.T
+    Sy = Y @ Y.T
 
     # Check that we recover our original vector
-    assert_allclose(x, y, atol=ATOL, rtol=RTOL)
+    assert_allclose(
+        sq_bures_metric(Sx, Sy),
+        sq_bures_metric_slow(Sx, Sy),
+        atol=ATOL, rtol=RTOL
+    )

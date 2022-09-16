@@ -9,7 +9,7 @@ from netrep.validation import check_equal_shapes
 from sklearn.metrics.pairwise import pairwise_kernels
 from scipy.stats import ortho_group
 from scipy.spatial.distance import squareform
-from scipy.linalg import orthogonal_procrustes
+from scipy.linalg import sqrtm, orthogonal_procrustes
 from scipy.optimize import linear_sum_assignment
 import scipy.sparse
 
@@ -61,14 +61,33 @@ def align(X, Y, group="orth"):
         raise ValueError(f"Specified group '{group}' not recognized.")
 
 
-def sq_bures_metric(A, B):
+def sq_bures_metric_slow(A, B):
     """
-    Square of the Bures metric between two positive-definite matrices
+    Slow way to compute the square of the Bures metric between two
+    positive-definite matrices.
     """
     va, ua = np.linalg.eigh(A)
     Asq = ua @ (np.sqrt(va[:, None]) * ua.T)
     return (
         np.trace(A) + np.trace(B) - 2 * np.sum(np.sqrt(np.linalg.eigvalsh(Asq @ B @ Asq)))
+    )
+
+
+def sq_bures_metric(A, B):
+    """
+    Slow way to compute the square of the Bures metric between two
+    positive-definite matrices.
+    """
+    va, ua = np.linalg.eigh(A)
+    vb, ub = np.linalg.eigh(B)
+    sva, svb = np.sqrt(va), np.sqrt(vb)
+    return (
+        np.sum(va) + np.sum(vb) - 2 * np.sum(
+            np.linalg.svd(
+                (sva[:, None] * ua.T) @ (ub * svb[None, :]),
+                compute_uv=False
+            )
+        )
     )
 
 

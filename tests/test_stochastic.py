@@ -86,7 +86,7 @@ def test_gaussian_lower_bound(seed, m, n):
         dists[i] = GaussianStochasticMetric(
             group="orth",
             alpha=a,
-            n_restarts=100,
+            n_restarts=10,
             init="rand",
             random_state=rs
         ).fit(X, Y).score(X, Y)
