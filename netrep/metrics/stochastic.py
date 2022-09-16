@@ -2,13 +2,14 @@ import itertools
 import numpy as np
 from netrep.utils import align, sq_bures_metric, rand_orth
 from sklearn.utils.validation import check_random_state
+from opt_einsum import contract
 
 
 class GaussianStochasticMetric:
 
     def __init__(
             self, alpha=1.0, group="orth", init="means", niter=1000, tol=1e-8,
-            random_state=None, n_restarts=5
+            random_state=None, n_restarts=1
         ):
         """
         alpha : float between 0 and 2
@@ -26,6 +27,8 @@ class GaussianStochasticMetric:
         self.tol = tol
         self._rs = check_random_state(random_state)
         self.n_restarts = n_restarts
+        if self.init == "means":
+            assert n_restarts == 1
 
     def fit(self, X, Y):
         means_X, covs_X = X
@@ -40,7 +43,7 @@ class GaussianStochasticMetric:
         best_loss = np.inf
         for restart in range(self.n_restarts):
 
-            if (restart == 0) and (self.init == "means"):
+            if self.init == "means":
                 init_T = align(means_Y, means_X, group=self.group)
             elif self.init == "rand":
                 init_T = rand_orth(means_X.shape[1], random_state=self._rs)
@@ -61,7 +64,7 @@ class GaussianStochasticMetric:
         means_Y, covs_Y = Y
         return X, (
             means_Y @ self.T,
-            np.einsum("ijk,jl,kp->ilp", covs_Y, self.T, self.T)
+            contract("ijk,jl,kp->ilp", covs_Y, self.T, self.T)
         )
 
     def score(self, X, Y):
@@ -120,7 +123,7 @@ class EnergyStochasticMetric:
         # Y.shape = (images x repeats x neurons)
         assert X.shape == Y.shape
 
-        return X, np.einsum("ijk,kl->ijl", Y, self.Q)
+        return X, contract("ijk,kl->ijl", Y, self.Q)
 
     def score(self, X, Y):
         X, Y = self.transform(X, Y)
@@ -148,10 +151,10 @@ def _fit_gaussian_alignment(
         means_X, means_Y, covs_X, covs_Y, T, alpha, group, niter, tol
     ):
     vX, uX = np.linalg.eigh(covs_X)
-    sX = np.einsum("ijk,ik,ilk->ijl", uX, np.sqrt(vX), uX)
+    sX = contract("ijk,ik,ilk->ijl", uX, np.sqrt(vX), uX)
     
     vY, uY = np.linalg.eigh(covs_Y)
-    sY = np.einsum("ijk,ik,ilk->ijl", uY, np.sqrt(vY), uY)
+    sY = contract("ijk,ik,ilk->ijl", uY, np.sqrt(vY), uY)
 
     loss_hist = []
 
