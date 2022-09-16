@@ -122,7 +122,6 @@ class EnergyStochasticMetric:
         # X.shape = (images x repeats x neurons)
         # Y.shape = (images x repeats x neurons)
         assert X.shape == Y.shape
-
         return X, contract("ijk,kl->ijl", Y, self.Q)
 
     def score(self, X, Y):
@@ -143,7 +142,7 @@ class EnergyStochasticMetric:
             d_xx += np.mean(np.linalg.norm(X[i][combs[:, 0]] - X[i][combs[:, 1]], axis=-1))
             d_yy += np.mean(np.linalg.norm(Y[i][combs[:, 0]] - Y[i][combs[:, 1]], axis=-1))
 
-        return (d_xy / m) - .5*((d_xx / m) + (d_yy / m))
+        return np.sqrt((d_xy / m) - .5*((d_xx / m) + (d_yy / m)))
 
 
 
