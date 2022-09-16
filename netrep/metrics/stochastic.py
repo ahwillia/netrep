@@ -2,6 +2,7 @@ import itertools
 import numpy as np
 from netrep.utils import align, sq_bures_metric, rand_orth
 from sklearn.utils.validation import check_random_state
+from opt_einsum import contract
 
 
 class GaussianStochasticMetric:
@@ -63,7 +64,7 @@ class GaussianStochasticMetric:
         means_Y, covs_Y = Y
         return X, (
             means_Y @ self.T,
-            np.einsum("ijk,jl,kp->ilp", covs_Y, self.T, self.T)
+            contract("ijk,jl,kp->ilp", covs_Y, self.T, self.T)
         )
 
     def score(self, X, Y):
@@ -122,7 +123,7 @@ class EnergyStochasticMetric:
         # Y.shape = (images x repeats x neurons)
         assert X.shape == Y.shape
 
-        return X, np.einsum("ijk,kl->ijl", Y, self.Q)
+        return X, contract("ijk,kl->ijl", Y, self.Q)
 
     def score(self, X, Y):
         X, Y = self.transform(X, Y)
@@ -150,10 +151,10 @@ def _fit_gaussian_alignment(
         means_X, means_Y, covs_X, covs_Y, T, alpha, group, niter, tol
     ):
     vX, uX = np.linalg.eigh(covs_X)
-    sX = np.einsum("ijk,ik,ilk->ijl", uX, np.sqrt(vX), uX)
+    sX = contract("ijk,ik,ilk->ijl", uX, np.sqrt(vX), uX)
     
     vY, uY = np.linalg.eigh(covs_Y)
-    sY = np.einsum("ijk,ik,ilk->ijl", uY, np.sqrt(vY), uY)
+    sY = contract("ijk,ik,ilk->ijl", uY, np.sqrt(vY), uY)
 
     loss_hist = []
 
