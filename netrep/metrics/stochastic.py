@@ -1,23 +1,41 @@
 import itertools
-import numpy as np
-from netrep.utils import align, sq_bures_metric, rand_orth
-from sklearn.utils.validation import check_random_state
-from opt_einsum import contract
+from typing import Tuple, Optional
 
+import numpy as np
+import numpy.typing as npt
+from opt_einsum import contract
+from sklearn.utils.validation import check_random_state
+
+from netrep.utils import align, sq_bures_metric, rand_orth
 
 class GaussianStochasticMetric:
+    """
+    Attributes
+    ----------
+    alpha: float between 0 and 2
+        When alpha == 0, only uses covariance
+        When alpha == 1, equals Wasserstein
+        When alpha == 2, only uses means (i.e. deterministic metric)
+    group: str
+        Invariance group over which to optimize.
+    init: str
+        Must be "means" or "rand".
+    niter: int
+        Number of optimization iterations.
+    tol: float
+        Optimization tolerance.
+    n_restarts: int
+        Number of restarts. Only valid when `init` is "rand".
+    T: np.ndarray
+        Optimal alignment matrix.
+    loss_hist: List[float]
+        Loss history.
+    """
 
     def __init__(
             self, alpha=1.0, group="orth", init="means", niter=1000, tol=1e-8,
             random_state=None, n_restarts=1
         ):
-        """
-        alpha : float between 0 and 2
-            When alpha == 0, only uses covariance
-            When alpha == 1, equals Wasserstein
-            When alpha == 2, only uses means (i.e. deterministic metric)
-        """
-
         if (alpha < 0) or (alpha > 2):
             raise ValueError("alpha parameter should be between zero and two.")
         self.alpha = alpha
@@ -83,11 +101,28 @@ class GaussianStochasticMetric:
 
 
 class EnergyStochasticMetric:
+    """
 
-    def __init__(self, group="orth"):
+    Attributes
+    ----------
+    group: str
+        Invariance group over which to optimize.
+    niter: int
+        Number of optimization iterations. 
+    tol: float
+        Defaults to 1e-6.
+    Q: np.ndarray
+        Optimal alignment matrix.
+    loss_hist: List[float]
+    """
+
+    def __init__( self, group="orth", niter=100, tol=1e-6):
+
         self.group = group
+        self.niter = niter
+        self.tol = tol
 
-    def fit(self, X, Y, niter=100, tol=1e-6):
+    def fit(self, X, Y):
         # X.shape = (images x repeats x neurons)
         # Y.shape = (images x repeats x neurons)
 
@@ -106,17 +141,18 @@ class EnergyStochasticMetric:
         w = np.ones(X.shape[0])
         loss_hist = [np.mean(np.linalg.norm(X - Y, axis=-1))]
 
-        for i in range(niter):
+        for i in range(self.niter):
             Q = align(w[:, None] * Y, w[:, None] * X, group=self.group)
             resid = np.linalg.norm(X - Y @ Q, axis=-1)
             loss_hist.append(np.mean(resid))
             w = 1 / np.maximum(np.sqrt(resid), 1e-6)
-            if (loss_hist[-2] - loss_hist[-1]) < tol:
+            if (loss_hist[-2] - loss_hist[-1]) < self.tol:
                 break
 
         self.w = w
         self.Q = Q
         self.loss_hist = loss_hist
+        return self
 
     def transform(self, X, Y):
         # X.shape = (images x repeats x neurons)
@@ -124,7 +160,7 @@ class EnergyStochasticMetric:
         assert X.shape == Y.shape
         return X, contract("ijk,kl->ijl", Y, self.Q)
 
-    def score(self, X, Y):
+    def score(self, X: npt.NDArray, Y: npt.NDArray) -> float:
         X, Y = self.transform(X, Y)
         m = X.shape[0] # num images
         n_samples = X.shape[1]
