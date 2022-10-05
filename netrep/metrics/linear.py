@@ -147,9 +147,9 @@ class LinearMetric(BaseEstimator):
         if self.score_method == "angular":
             return angular_distance(*self.transform(X, Y))
         elif self.score_method == "euclidean":
-            return np.mean(np.linalg.norm(
-                np.subtract(*self.transform(X, Y)), axis=1
-            ))
+            return np.linalg.norm(
+                np.subtract(*self.transform(X, Y)), ord="fro"
+            )
 
     def transform_X(self, X):
         """Transform X into the aligned space."""
