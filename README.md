@@ -130,12 +130,11 @@ X_aligned, Y_aligned = metric.transform(X, Y)
 
 ## Stochastic shape metrics
 
-We also provide a way to compare between stochastic neural responses (e.g. biological neural network responses to stimulus repetitions, latent activations in variational autoencoders). The API is similar to `LinearMetric()`, requires slightly differently-formatted inputs.
+We also provide a way to compare between stochastic neural responses (e.g. biological neural network responses to stimulus repetitions, or latent activations in variational autoencoders). The API is similar to `LinearMetric()`, but requires differently-formatted inputs.
 
 **1) Stochastic shape metrics using** `GaussianStochasticMetric()`
 
-The first method models network response distributions as multivariate Gaussians, and computes distances based on the analytic solution to the 2-Wasserstein distance between two Gaussians.
-This involves computing class-conditional means and covariances for each network, then computing the metric as follows.
+The first method models network response distributions as multivariate Gaussians, and computes distances based on the analytic solution to the 2-Wasserstein distance between two Gaussians. This involves computing class-conditional means and covariances for each network, then computing the metric as follows.
 
 ```python
 # Given
