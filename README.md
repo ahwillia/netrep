@@ -19,6 +19,17 @@ We published a [**conference paper (Neurips '21)**](https://arxiv.org/abs/2110.1
 }
 ```
 
+Recently, we [**posted a preprint**](https://arxiv.org/abs/2211.11665) which extends these ideas to measure distances between stochastic network layers.
+
+```
+@misc{2211.11665,
+  author = {Lyndon R. Duong and Jingyang Zhou and Josue Nassar and Jules Berman and Jeroen Olieslagers and Alex H. Williams},
+  title = {Representational dissimilarity metric spaces for stochastic neural networks},
+  year = {2022},
+  eprint = {arXiv:2211.11665},
+}
+```
+
 We also presented an early version of this work at Cosyne (see [**7 minute summary on youtube**](https://www.youtube.com/watch?v=Lt_Vo-tQcW0)) in early 2021.
 
 **Note:** This research code remains a work-in-progress to some extent. It could use more documentation and examples. Please use at your own risk and reach out to us (alex.h.willia@gmail.com) if you have questions.
