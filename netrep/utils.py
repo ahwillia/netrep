@@ -1,22 +1,25 @@
 """
 Miscellaneous helper functions.
 """
-# import numba
+from typing import Tuple, Literal, Union, Optional
+
 import numpy as np
-from sklearn.utils.extmath import randomized_svd
-from sklearn.utils.validation import check_random_state
-from netrep.validation import check_equal_shapes
-from sklearn.metrics.pairwise import pairwise_kernels
-from scipy.stats import ortho_group
-from scipy.spatial.distance import squareform
-from scipy.linalg import sqrtm, orthogonal_procrustes
+import numpy.typing as npt
+from scipy.linalg import orthogonal_procrustes
 from scipy.optimize import linear_sum_assignment
 import scipy.sparse
+from scipy.stats import ortho_group
+from sklearn.utils.extmath import randomized_svd
+from sklearn.metrics.pairwise import pairwise_kernels
+from sklearn.utils.validation import check_random_state
 
 
-def align(X, Y, group="orth"):
-    """
-    Return a matrix that optimally aligns 'X' to 'Y'. Note
+def align(
+    X: npt.NDArray, 
+    Y: npt.NDArray, 
+    group: Literal["orth", "perm", "identity"] = "orth"
+    ) -> Union[npt.NDArray, scipy.sparse.csr_matrix, scipy.sparse.dia_matrix]:
+    """Return a matrix that optimally aligns 'X' to 'Y'. Note
     that the optimal alignment is the same for either the
     angular distance or the Euclidean distance since all
     alignments come from sub-groups of the orthogonal group.
@@ -32,7 +35,7 @@ def align(X, Y, group="orth"):
         Activation patterns across 'm' inputs and 'n' neurons,
         sampled from the second network (the one which is fixed).
 
-    group : str
+    group : Literal["orth", "perm", "identity"]
         Specifies the set of allowable alignment operations (a group of
         isometries). Must be one of ("orth", "perm", "identity").
 
@@ -61,9 +64,8 @@ def align(X, Y, group="orth"):
         raise ValueError(f"Specified group '{group}' not recognized.")
 
 
-def sq_bures_metric_slow(A, B):
-    """
-    Slow way to compute the square of the Bures metric between two
+def sq_bures_metric_slow(A: npt.NDArray, B: npt.NDArray) -> float:
+    """Slow way to compute the square of the Bures metric between two
     positive-definite matrices.
     """
     va, ua = np.linalg.eigh(A)
@@ -73,10 +75,9 @@ def sq_bures_metric_slow(A, B):
     )
 
 
-def sq_bures_metric(A, B):
-    """
-    Slow way to compute the square of the Bures metric between two
-    positive-definite matrices.
+def sq_bures_metric(A: npt.NDArray, B: npt.NDArray) -> float:
+    """Slow way to compute the square of the Bures metric between two
+     positive-definite matrices.
     """
     va, ua = np.linalg.eigh(A)
     vb, ub = np.linalg.eigh(B)
@@ -103,15 +104,13 @@ def centered_kernel(*args, **kwargs):
     return K - (sc / sr.size) - (sr / sc.size) + (ss / K.size)
 
 
-def angular_distance(X, Y):
-    """
-    Computes angular distance based on Frobenius inner product
-    between two matrices.
+def angular_distance(X: npt.NDArray, Y: npt.NDArray) -> float:
+    """Computes angular distance based on Frobenius inner product between two matrices.
 
     Parameters
     ----------
-    X : m x n matrix
-    Y : m x n matrix
+    X : (m x n) ndarray
+    Y : (m x n) ndarray
 
     Returns
     -------
@@ -123,32 +122,29 @@ def angular_distance(X, Y):
     return np.arccos(np.clip(corr, -1.0, 1.0))
 
 
-def trunc_svd(X, r):
-    """
-    Singular value decomposition, keeping top r components.
-    """
+def trunc_svd(X: npt.NDArray, r: int) -> Tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
+    """Singular value decomposition, keeping top r components."""
     return randomized_svd(X, n_components=r, n_iter=5)
 
 
-def econ_svd(X):
-    """
-    Economic Singular Value Decomposition (SVD).
-    """
+def econ_svd(X: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
+    """Economic Singular Value Decomposition (SVD)."""
     return np.linalg.svd(X, full_matrices=False)
 
 
-def rand_orth(m, n=None, random_state=None):
-    """
-    Creates a random matrix with orthogonal columns or rows.
+def rand_orth(
+    m: int, 
+    n: Optional[int] = None, 
+    random_state: Optional[Union[int, np.random.RandomState]] = None
+    ) -> npt.NDArray:
+    """Creates a random matrix with orthogonal columns or rows.
 
     Parameters
     ----------
     m : int
         First dimension
-
     n : int
         Second dimension (if None, matrix is m x m)
-
     random_state : int or np.random.RandomState
         Specifies the state of the random number generator.
 
@@ -172,9 +168,13 @@ def rand_orth(m, n=None, random_state=None):
     return Q
 
 
-def whiten(X, alpha, preserve_variance=True, eigval_tol=1e-7):
-    """
-    Return regularized whitening transform for a matrix X.
+def whiten(
+    X: npt.NDArray, 
+    alpha: float, 
+    preserve_variance: bool = True, 
+    eigval_tol=1e-7
+    ) -> Tuple[npt.NDArray, npt.NDArray]:
+    """Return regularized whitening transform for a matrix X.
 
     Parameters
     ----------
@@ -183,27 +183,22 @@ def whiten(X, alpha, preserve_variance=True, eigval_tol=1e-7):
         in `n`-dimensional feature space. Columns of `X` are
         expected to be mean-centered so that `X.T @ X` is
         the covariance matrix.
-
     alpha : float
         Regularization parameter, `0 <= alpha <= 1`. When
         `alpha == 0`, the data matrix is fully whitened.
         When `alpha == 1` the data matrix is not transformed
         (`Z == eye(X.shape[1])`).
-
     preserve_variance : bool
         If True, rescale the (partial) whitening matrix so
         that the total variance, trace(X.T @ X), is preserved.
-
     eigval_tol : float
         Eigenvalues of covariance matrix are clipped to this
         minimum value.
 
     Returns
     -------
-
     X_whitened : ndarray
         Transformed data matrix.
-
     Z : ndarray
         Matrix implementing the whitening transformation.
         `X_whitened = X @ Z`.
@@ -254,20 +249,21 @@ def whiten(X, alpha, preserve_variance=True, eigval_tol=1e-7):
 
 
 
-def rand_struc_orth(n, n_transforms=3, random_state=None):
-    """
-    Draws random sign flips for structured orthogonal
+def rand_struc_orth(
+    n: int, 
+    n_transforms: int = 3, 
+    random_state: Optional[Union[int, np.random.RandomState]] = None
+) -> npt.NDArray:
+    """Draws random sign flips for structured orthogonal
     transformation. See also, `struc_orth_matvec` function.
 
     Parameters
     ----------
     n : int
         Dimensionality.
-
     n_transforms : int
         Number of sign flips to perform in between Hadamard
         transforms. Default is 3.
-
     random_state : int or np.random.RandomState
         Random number specification.
     """
@@ -279,8 +275,7 @@ def rand_struc_orth(n, n_transforms=3, random_state=None):
 
 
 def struc_orth_matvec(Ds, a, transpose=False):
-    """
-    Structured orthogonal matrix-vector multiply. Modifies
+    """Structured orthogonal matrix-vector multiply. Modifies
     vector `a` in-place.
 
     If transpose == False, then this computes:

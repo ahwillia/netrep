@@ -3,10 +3,17 @@ Helper functions to check model inputs.
 """
 
 import numpy as np
+import numpy.typing as npt
 from sklearn.utils.validation import check_array
 
 
-def check_equal_shapes(X, Y, nd=2, zero_pad=False):
+def check_equal_shapes(
+    X: npt.NDArray, 
+    Y: npt.NDArray, 
+    nd: int = 2, 
+    zero_pad: bool = False
+    ) -> tuple[npt.NDArray, npt.NDArray]:
+    """Checks that X and Y have equal shapes."""
 
     X = check_array(X, allow_nd=True)
     Y = check_array(Y, allow_nd=True)
