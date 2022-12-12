@@ -1,5 +1,6 @@
+from __future__ import annotations
 import itertools
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union, Literal, List
 
 import numpy as np
 import numpy.typing as npt
@@ -9,17 +10,19 @@ from sklearn.utils.validation import check_random_state
 from netrep.utils import align, sq_bures_metric, rand_orth
 
 class GaussianStochasticMetric:
-    """
+    """2-Wasserstein distance between Gaussian-distributed network responses.
+
     Attributes
     ----------
     alpha: float between 0 and 2
-        When alpha == 0, only uses covariance
-        When alpha == 1, equals Wasserstein
-        When alpha == 2, only uses means (i.e. deterministic metric)
-    group: str
+        Interpolates between covariance-only and mean-only distance metrics.
+        When alpha == 0: only uses covariance.
+        When alpha == 1: computes 2-Wasserstein.
+        When alpha == 2: only uses means (i.e. deterministic metric).
+    group: Literal["orth", "perm", "identity"]
         Invariance group over which to optimize.
-    init: str
-        Must be "means" or "rand".
+    init: Literal["means", "rand"]
+        Transform initialization.
     niter: int
         Number of optimization iterations.
     tol: float
@@ -33,9 +36,15 @@ class GaussianStochasticMetric:
     """
 
     def __init__(
-            self, alpha=1.0, group="orth", init="means", niter=1000, tol=1e-8,
-            random_state=None, n_restarts=1
-        ):
+            self, 
+            alpha: float=1.0, 
+            group: Literal["orth", "perm", "identity"] = "orth", 
+            init: Literal["means", "rand"] = "means", 
+            niter: int = 1000, 
+            tol: float = 1e-8,
+            random_state: Optional[Union[int, np.random.RandomState]]=None, 
+            n_restarts: int = 1,
+    ):
         if (alpha < 0) or (alpha > 2):
             raise ValueError("alpha parameter should be between zero and two.")
         self.alpha = alpha
@@ -48,7 +57,29 @@ class GaussianStochasticMetric:
         if self.init == "means":
             assert n_restarts == 1
 
-    def fit(self, X, Y):
+    def fit(
+        self, 
+        X: Tuple[npt.NDArray, npt.NDArray], 
+        Y: Tuple[npt.NDArray, npt.NDArray]
+    ) -> GaussianStochasticMetric:
+        """Aligns network responses with interpolated 2-Wasserstein ground metric.
+
+        Parameters
+        ----------
+        X : Tuple[np.ndarray, np.ndarray]
+            Tuple of (means, covariances) for first set of network responses. Means has
+            shape (n_images, n_neurons) and covariances has shape 
+            (n_images, n_neurons, n_neurons).
+        Y : Tuple[np.ndarray, np.ndarray]
+            Tuple of (means, covariances) for second set of network responses. Means has
+            shape (n_images, n_neurons) and covariances has shape   
+            (n_images, n_neurons, n_neurons).
+        
+        Returns
+        -------
+        self: GaussianStochasticMetric
+            Instance of class with optimal alignment matrix stored in `self.T`.
+        """
         means_X, covs_X = X
         means_Y, covs_Y = Y
 
@@ -59,7 +90,7 @@ class GaussianStochasticMetric:
         assert means_X.shape[1] == covs_X.shape[2]
 
         best_loss = np.inf
-        for restart in range(self.n_restarts):
+        for _ in range(self.n_restarts):
 
             if self.init == "means":
                 init_T = align(means_Y, means_X, group=self.group)
@@ -78,14 +109,61 @@ class GaussianStochasticMetric:
         self.loss_hist = loss_hist
         return self
 
-    def transform(self, X, Y):
+    def transform(
+        self, 
+        X: Tuple[npt.NDArray, npt.NDArray], 
+        Y: Tuple[npt.NDArray, npt.NDArray]
+    ) -> Tuple[Tuple[npt.NDArray, npt.NDArray], Tuple[npt.NDArray, npt.NDArray]]:
+        """Aligns second set of network responses with first set.
+
+        Parameters
+        ----------
+        X : Tuple[np.ndarray, np.ndarray]
+            Tuple of (means, covariances) for first set of network responses. Means has
+            shape (n_images, n_neurons) and covariances has shape 
+            (n_images, n_neurons, n_neurons).
+        Y : Tuple[np.ndarray, np.ndarray]
+            Tuple of (means, covariances) for second set of network responses. Means has
+            shape (n_images, n_neurons) and covariances has shape
+            (n_images, n_neurons, n_neurons).
+
+        Returns
+        -------
+        X : Tuple[np.ndarray, np.ndarray]
+            Same as input.
+        Y_transformed : Tuple[np.ndarray, np.ndarray]
+            Aligned tuple of (means, covariances) for second set of network responses.
+        """
         means_Y, covs_Y = Y
-        return X, (
+        Y_transformed = (
             means_Y @ self.T,
             contract("ijk,jl,kp->ilp", covs_Y, self.T, self.T)
         )
+        return X, Y_transformed
 
-    def score(self, X, Y):
+    def score(
+        self, 
+        X: Tuple[npt.NDArray, npt.NDArray], 
+        Y: Tuple[npt.NDArray, npt.NDArray]
+    ) -> float:
+        """Computes interpolated 2-Wasserstein distance between aligned network responses.
+
+        Parameters
+        ----------
+        X: Tuple[np.ndarray, np.ndarray]
+            Tuple of (means, covariances) for first set of network responses. Means has
+            shape (n_images, n_neurons) and covariances has shape
+            (n_images, n_neurons, n_neurons).
+        Y: Tuple[np.ndarray, np.ndarray]
+            Tuple of (means, covariances) for second set of network responses. Means has
+            shape (n_images, n_neurons) and covariances has shape
+            (n_images, n_neurons, n_neurons).
+
+        Returns
+        -------        
+        score: float
+            Interpolated 2-Wasserstein distance between aligned network responses.
+        """
         X, Y = self.transform(X, Y)
         mX, sX = X
         mY, sY = Y
@@ -101,11 +179,11 @@ class GaussianStochasticMetric:
 
 
 class EnergyStochasticMetric:
-    """
+    """Optimal alignment of network responses using energy distance as the ground metric.
 
     Attributes
     ----------
-    group: str
+    group: Literal["orth", "perm", "identity"]
         Invariance group over which to optimize.
     niter: int
         Number of optimization iterations. 
@@ -116,24 +194,39 @@ class EnergyStochasticMetric:
     loss_hist: List[float]
     """
 
-    def __init__( self, group="orth", niter=100, tol=1e-6):
+    def __init__(
+        self, 
+        group: Literal["orth", "perm", "identity"] = "orth", 
+        niter: int = 100, 
+        tol: float = 1e-6):
 
         self.group = group
         self.niter = niter
         self.tol = tol
 
-    def fit(self, X, Y):
-        # X.shape = (images x repeats x neurons)
-        # Y.shape = (images x repeats x neurons)
+    def fit(
+        self, 
+        X: npt.NDArray, 
+        Y: npt.NDArray
+    ) -> EnergyStochasticMetric:
+        """Fits optimal matrix that aligns network responses Y to X.
 
+        Parameters
+        ----------
+        X : np.ndarray
+            Responses of first network with Size[(images, repeats, neurons]).
+        Y : np.ndarray
+            Responses of second network with Size[(images, repeats, neurons]).
+
+        Returns
+        -------
+        self : EnergyStochasticMetric
+            Class instance with updated state.
+        """
         assert X.shape == Y.shape
 
         r = X.shape[1]
 
-        # m = X.shape[0] * X.shape[1]
-        # n = X.shape[-1]
-        # X = X.reshape(m, n)
-        # Y = Y.reshape(m, n)
         idx = np.array(list(itertools.product(range(r), range(r))))
         X = np.row_stack([x[idx[:, 0]] for x in X])
         Y = np.row_stack([y[idx[:, 1]] for y in Y])
@@ -141,7 +234,7 @@ class EnergyStochasticMetric:
         w = np.ones(X.shape[0])
         loss_hist = [np.mean(np.linalg.norm(X - Y, axis=-1))]
 
-        for i in range(self.niter):
+        for _ in range(self.niter):
             Q = align(w[:, None] * Y, w[:, None] * X, group=self.group)
             resid = np.linalg.norm(X - Y @ Q, axis=-1)
             loss_hist.append(np.mean(resid))
@@ -154,13 +247,46 @@ class EnergyStochasticMetric:
         self.loss_hist = loss_hist
         return self
 
-    def transform(self, X, Y):
-        # X.shape = (images x repeats x neurons)
-        # Y.shape = (images x repeats x neurons)
+    def transform(
+        self, 
+        X: npt.NDArray, 
+        Y: npt.NDArray
+    ) -> Tuple[npt.NDArray, npt.NDArray]:
+        """Aligns second network responses to first network responses.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            First network's responses, with Size[(images, repeats, neurons)].
+        Y : np.ndarray
+            Second network's responses, with Size[(images, repeats, neurons)].
+
+        Returns
+        -------
+        X : np.ndarray
+            First network's responses, with Size[(images, repeats, neurons)].
+        Y_aligned : np.ndarray
+            Aligned second network's responses, with Size[(images, repeats, neurons)].
+        """
         assert X.shape == Y.shape
-        return X, contract("ijk,kl->ijl", Y, self.Q)
+        Y_aligned = contract("ijk,kl->ijl", Y, self.Q)
+        return X, Y_aligned
 
     def score(self, X: npt.NDArray, Y: npt.NDArray) -> float:
+        """Compute the Energy distance metric between two networks.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            First network's responses, with Size[(images, repeats, neurons)].
+        Y : np.ndarray
+            Second network's responses, with Size[(images, repeats, neurons)].
+        
+        Returns
+        -------
+        score : float
+            Energy distance metric between two networks.
+        """
         X, Y = self.transform(X, Y)
         m = X.shape[0] # num images
         n_samples = X.shape[1]
@@ -183,8 +309,18 @@ class EnergyStochasticMetric:
 
 
 def _fit_gaussian_alignment(
-        means_X, means_Y, covs_X, covs_Y, T, alpha, group, niter, tol
-    ):
+        means_X: npt.NDArray, 
+        means_Y: npt.NDArray, 
+        covs_X: npt.NDArray, 
+        covs_Y: npt.NDArray, 
+        T: npt.NDArray, 
+        alpha: float, 
+        group: Literal["orth", "perm", "identity"], 
+        niter: int, 
+        tol: float,
+    ) -> Tuple[npt.NDArray, List[float]]:
+    """Helper function for fitting alignment between Gaussian-distributed responses."""
+
     vX, uX = np.linalg.eigh(covs_X)
     sX = contract("ijk,ik,ilk->ijl", uX, np.sqrt(vX), uX)
     
