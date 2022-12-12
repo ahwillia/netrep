@@ -1,16 +1,24 @@
+from __future__ import annotations
+from typing import Literal, Tuple
+
 import numpy as np
-from sklearn.utils.validation import check_array, check_is_fitted, check_symmetric
-from netrep.utils import whiten, angular_distance, centered_kernel
-from netrep.validation import check_equal_shapes
-from numpy.testing import assert_array_almost_equal
+import numpy.typing as npt
+from sklearn.utils.validation import check_is_fitted
 from sklearn.base import BaseEstimator
 
+from netrep.utils import whiten, angular_distance
+from netrep.validation import check_equal_shapes
 
 class LinearMetric(BaseEstimator):
+    """Computes distance between two sets of optimally linearly aligned representations.
+    """
 
     def __init__(
-            self, alpha=1.0, center_columns=True, zero_pad=True,
-            score_method="angular"
+            self, 
+            alpha: float = 1.0, 
+            center_columns: bool = True, 
+            zero_pad: bool = True,
+            score_method: Literal["angular", "euclidean"] = "angular"
         ):
         """
         Parameters
@@ -51,10 +59,11 @@ class LinearMetric(BaseEstimator):
         self.zero_pad = zero_pad
         self.score_method = score_method
 
-    def partial_fit(self, X):
-        """
-        Computes partial whitening transformation for a 
-        """
+    def partial_fit(
+        self, 
+        X: npt.NDArray
+    ) -> Tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
+        """Computes partial whitening transformation for a response matrix."""
         if self.center_columns:
             mx = np.mean(X, axis=0)
             Xw, Zx = whiten(X - mx[None, :], self.alpha, preserve_variance=True)
@@ -63,7 +72,11 @@ class LinearMetric(BaseEstimator):
             Xw, Zx = whiten(X, self.alpha, preserve_variance=True)
         return (mx, Xw, Zx)
 
-    def finalize_fit(self, cache_X, cache_Y):
+    def finalize_fit(
+        self, 
+        cache_X: Tuple[npt.NDArray, npt.NDArray, npt.NDArray],
+        cache_Y: Tuple[npt.NDArray, npt.NDArray, npt.NDArray],
+        ) -> LinearMetric:
         """
         Takes outputs of 'partial_fit' function and finishes fitting
         transformation matrices (Wx, Wy) and bias terms (mx, my) to
@@ -81,9 +94,8 @@ class LinearMetric(BaseEstimator):
 
         return self
 
-    def fit(self, X, Y):
-        """
-        Fits transformation matrices (Wx, Wy) and bias terms (mx, my)
+    def fit(self, X: npt.NDArray, Y: npt.NDArray) -> LinearMetric:
+        """Fits transformation matrices (Wx, Wy) and bias terms (mx, my)
         to align a pair of neural activation matrices.
 
         Parameters
@@ -99,9 +111,12 @@ class LinearMetric(BaseEstimator):
             self.partial_fit(Y)
         )
 
-    def transform(self, X, Y):
-        """
-        Applies linear alignment transformations to X and Y.
+    def transform(
+        self, 
+        X: npt.NDArray, 
+        Y: npt.NDArray
+    ) -> Tuple[npt.NDArray, npt.NDArray]:
+        """Applies linear alignment transformations to X and Y.
 
         Parameters
         ----------
@@ -118,18 +133,28 @@ class LinearMetric(BaseEstimator):
             Transformed version of Y.
         """
         X, Y = check_equal_shapes(X, Y, nd=2, zero_pad=self.zero_pad)
-        return self.transform_X(X), self.transform_Y(Y)
+        return self._transform_X(X), self._transform_Y(Y)
 
-    def fit_score(self, X, Y):
-        """
-        Fits alignment by calling `fit(X, Y)` and then evaluates
+    def fit_score(self, X: npt.NDArray, Y: npt.NDArray) -> float:
+        """Fits alignment by calling `fit(X, Y)` and then evaluates
         the distance by calling `score(X, Y)`.
+
+        Parameters
+        ----------
+        X : ndarray
+            (num_samples x num_neurons) matrix of activations.
+        Y : ndarray
+            (num_samples x num_neurons) matrix of activations.
+        
+        Returns
+        -------
+        dist : float
+            Distance between X and Y.
         """
         return self.fit(X, Y).score(X, Y)
 
-    def score(self, X, Y):
-        """
-        Computes the angular distance between X and Y in
+    def score(self, X: npt.NDArray, Y: npt.NDArray) -> float:
+        """Computes the angular distance between X and Y in
         the aligned space.
 
         Parameters
@@ -142,16 +167,16 @@ class LinearMetric(BaseEstimator):
         Returns
         -------
         dist : float
-            Angular distance between X and Y.
+            Distance between X and Y.
         """
         if self.score_method == "angular":
             return angular_distance(*self.transform(X, Y))
-        elif self.score_method == "euclidean":
+        else: # self.score_method == "euclidean":
             return np.linalg.norm(
                 np.subtract(*self.transform(X, Y)), ord="fro"
             )
 
-    def transform_X(self, X):
+    def _transform_X(self, X: npt.NDArray) -> npt.NDArray:
         """Transform X into the aligned space."""
         check_is_fitted(self, attributes=["Wx_"])
         if (X.shape[1] != self.Wx_.shape[0]):
@@ -164,7 +189,7 @@ class LinearMetric(BaseEstimator):
         else:
             return (X @ self.Wx_)
 
-    def transform_Y(self, Y):
+    def _transform_Y(self, Y: npt.NDArray) -> npt.NDArray:
         """Transform X into the aligned space."""
         check_is_fitted(self, attributes=["Wy_"])
         if (Y.shape[1] != self.Wy_.shape[0]):

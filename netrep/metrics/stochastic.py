@@ -9,6 +9,7 @@ from sklearn.utils.validation import check_random_state
 
 from netrep.utils import align, sq_bures_metric, rand_orth
 
+
 class GaussianStochasticMetric:
     """2-Wasserstein distance between Gaussian-distributed network responses.
 
@@ -177,6 +178,31 @@ class GaussianStochasticMetric:
         # negative outputs should be caught by unit tests.
         return np.sign(mn) * np.sqrt(abs(mn))
 
+    def fit_score(
+        self, 
+        X: Tuple[npt.NDArray, npt.NDArray], 
+        Y: Tuple[npt.NDArray, npt.NDArray]
+        ) -> float:
+        """Fits alignment matrix and returns distance.
+
+        Parameters
+        ----------
+        X: Tuple[np.ndarray, np.ndarray]
+            Tuple of (means, covariances) for first set of network responses. Means has
+            shape (n_images, n_neurons) and covariances has shape
+            (n_images, n_neurons, n_neurons).
+        Y: Tuple[np.ndarray, np.ndarray]
+            Tuple of (means, covariances) for second set of network responses. Means has
+            shape (n_images, n_neurons) and covariances has shape
+            (n_images, n_neurons, n_neurons).
+        
+        Returns
+        -------
+        score: float
+            Interpolated 2-Wasserstein distance between aligned network responses.
+        """
+        return self.fit(X, Y).score(X, Y)
+
 
 class EnergyStochasticMetric:
     """Optimal alignment of network responses using energy distance as the ground metric.
@@ -306,6 +332,22 @@ class EnergyStochasticMetric:
 
         return np.sqrt((d_xy / m) - .5*((d_xx / m) + (d_yy / m)))
 
+    def fit_score(self, X: npt.NDArray, Y: npt.NDArray) -> float:
+        """Fits optimal alignment and computes the Energy distance metric between two networks.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            First network's responses, with Size[(images, repeats, neurons)].
+        Y : np.ndarray
+            Second network's responses, with Size[(images, repeats, neurons)].
+        
+        Returns
+        -------
+        score : float
+            Energy distance metric between two networks.
+        """
+        return self.fit(X, Y).score(X, Y)
 
 
 def _fit_gaussian_alignment(

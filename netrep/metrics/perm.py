@@ -1,14 +1,20 @@
+from __future__ import annotations
+from typing import Tuple
+
 import numpy as np
-from netrep.validation import check_equal_shapes
-from netrep.utils import angular_distance
+import numpy.typing as npt
 from scipy.optimize import linear_sum_assignment as lsa
 from sklearn.base import BaseEstimator
-from sklearn.utils.validation import check_array, check_is_fitted, check_symmetric
+from sklearn.utils.validation import check_is_fitted
 
+from netrep.validation import check_equal_shapes
+from netrep.utils import angular_distance
 
 class PermutationMetric(BaseEstimator):
+    """Computes distance between two sets of optimally permutation-aligned representations.
+    """
 
-    def __init__(self, center_columns=True, zero_pad=True):
+    def __init__(self, center_columns: bool = True, zero_pad: bool = True):
         """
         Parameters
         ----------
@@ -26,9 +32,8 @@ class PermutationMetric(BaseEstimator):
         self.center_columns = center_columns
         self.zero_pad = zero_pad
 
-    def partial_fit(self, X):
-        """
-        Computes partial whitening transformation for a 
+    def partial_fit(self, X: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
+        """Computes partial whitening transformation for a neural response matrix.
         """
         if self.center_columns:
             mx = np.mean(X, axis=0)
@@ -38,11 +43,13 @@ class PermutationMetric(BaseEstimator):
             Xphi = X
         return (mx, Xphi)
 
-    def finalize_fit(self, cache_X, cache_Y):
-        """
-        Takes outputs of 'partial_fit' function and finishes fitting
-        permutation matrices (Px, Py) and bias terms (mx, my) to
-        align a pair of neural activations.
+    def finalize_fit(
+        self, 
+        cache_X: Tuple[npt.NDArray, npt.NDArray], 
+        cache_Y: Tuple[npt.NDArray, npt.NDArray]
+    ) -> PermutationMetric:
+        """Takes outputs of 'partial_fit' function and finishes fitting permutation 
+        matrices (Px, Py) and bias terms (mx, my) to align a pair of neural activations.
         """
 
         # Extract whitened representations.
@@ -54,10 +61,9 @@ class PermutationMetric(BaseEstimator):
 
         return self
 
-    def fit(self, X, Y):
-        """
-        Fits permutation matrices (Px, Py) and bias terms (mx, my)
-        to align a pair of neural activation matrices.
+    def fit(self, X: npt.NDArray, Y: npt.NDArray) -> PermutationMetric:
+        """Fits permutation matrices (Px, Py) and bias terms (mx, my) to align a pair of 
+        neural activation matrices.
 
         Parameters
         ----------
@@ -72,9 +78,12 @@ class PermutationMetric(BaseEstimator):
             self.partial_fit(Y)
         )
 
-    def transform(self, X, Y):
-        """
-        Applies linear alignment transformations to X and Y.
+    def transform(
+        self, 
+        X: npt.NDArray, 
+        Y: npt.NDArray
+    ) -> Tuple[npt.NDArray, npt.NDArray]:
+        """Applies linear alignment transformations to X and Y.
 
         Parameters
         ----------
@@ -91,18 +100,28 @@ class PermutationMetric(BaseEstimator):
             Transformed version of Y.
         """
         X, Y = check_equal_shapes(X, Y, nd=2, zero_pad=self.zero_pad)
-        return self.transform_X(X), self.transform_Y(Y)
+        return self._transform_X(X), self._transform_Y(Y)
 
-    def fit_score(self, X, Y):
-        """
-        Fits alignment by calling `fit(X, Y)` and then evaluates
+    def fit_score(self, X: npt.NDArray, Y: npt.NDArray) -> float:
+        """Fits alignment by calling `fit(X, Y)` and then evaluates
         the distance by calling `score(X, Y)`.
+
+        Parameters
+        ----------
+        X : ndarray
+            (num_samples x num_neurons) matrix of activations.
+        Y : ndarray
+            (num_samples x num_neurons) matrix of activations.
+        
+        Returns
+        -------
+        dist : float
+            Distance between optimally aligned X and Y.
         """
         return self.fit(X, Y).score(X, Y)
 
-    def score(self, X, Y):
-        """
-        Computes the angular distance between X and Y in
+    def score(self, X: npt.NDArray, Y: npt.NDArray) -> float:
+        """Computes the angular distance between X and Y in
         the aligned space.
 
         Parameters
@@ -119,9 +138,8 @@ class PermutationMetric(BaseEstimator):
         """
         return angular_distance(*self.transform(X, Y))
 
-    def score_euclidean(self, X, Y):
-        """
-        Computes the average Euclidean distance between the
+    def score_euclidean(self, X: npt.NDArray, Y: npt.NDArray) -> float:
+        """Computes the average Euclidean distance between the
         rows of X and Y in the aligned space.
 
         Parameters
@@ -139,7 +157,7 @@ class PermutationMetric(BaseEstimator):
         resid = np.subtract(*self.transform(X, Y))
         return np.mean(np.linalg.norm(resid, axis=1))
 
-    def transform_X(self, X):
+    def _transform_X(self, X: npt.NDArray) -> npt.NDArray:
         """Transform X into the aligned space."""
         check_is_fitted(self, attributes=["Px_"])
         if (X.shape[1] != len(self.Px_)):
@@ -152,7 +170,7 @@ class PermutationMetric(BaseEstimator):
         else:
             return X[:, self.Px_]
 
-    def transform_Y(self, Y):
+    def _transform_Y(self, Y: npt.NDArray) -> npt.NDArray:
         """Transform X into the aligned space."""
         check_is_fitted(self, attributes=["Py_"])
         if (Y.shape[1] != len(self.Py_)):
