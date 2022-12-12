@@ -330,7 +330,7 @@ class EnergyStochasticMetric:
             d_xx += np.mean(np.linalg.norm(X[i][combs[:, 0]] - X[i][combs[:, 1]], axis=-1))
             d_yy += np.mean(np.linalg.norm(Y[i][combs[:, 0]] - Y[i][combs[:, 1]], axis=-1))
 
-        return np.sqrt((d_xy / m) - .5*((d_xx / m) + (d_yy / m)))
+        return np.sqrt(max(0, (d_xy / m) - .5*((d_xx / m) + (d_yy / m))))
 
     def fit_score(self, X: npt.NDArray, Y: npt.NDArray) -> float:
         """Fits optimal alignment and computes the Energy distance metric between two networks.
