@@ -48,7 +48,7 @@ Since the code is preliminary, you will be able to use `git pull` to get updates
 
 ### Computing the distance between two networks 
 
-The metrics implemented in this library are extensions of [Procrustes distance](https://en.wikipedia.org/wiki/Procrustes_analysis). Some useful background can be found in Dryden &amp; Mardia's textbook on [*Statistical Shape Analysis*](https://www.wiley.com/en-us/Statistical+Shape+Analysis%3A+With+Applications+in+R%2C+2nd+Edition-p-9780470699621). A forthcoming preprint will describe the various metrics in more detail. For now, please see the short video description above and reach out to us if you have more questions.
+The metrics implemented in this library are extensions of [Procrustes distance](https://en.wikipedia.org/wiki/Procrustes_analysis). Some useful background can be found in Dryden &amp; Mardia's textbook on [*Statistical Shape Analysis*](https://www.wiley.com/en-us/Statistical+Shape+Analysis%3A+With+Applications+in+R%2C+2nd+Edition-p-9780470699621).
 
 The code uses an API similar to [scikit-learn](https://scikit-learn.org/), so we recommend familiarizing yourself with that package.
 
