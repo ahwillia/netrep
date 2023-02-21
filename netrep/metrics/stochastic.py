@@ -4,7 +4,6 @@ from typing import Tuple, Optional, Union, Literal, List
 
 import numpy as np
 import numpy.typing as npt
-from opt_einsum import contract
 from sklearn.utils.validation import check_random_state
 
 from netrep.utils import align, sq_bures_metric, rand_orth
@@ -138,7 +137,7 @@ class GaussianStochasticMetric:
         means_Y, covs_Y = Y
         Y_transformed = (
             means_Y @ self.T,
-            contract("ijk,jl,kp->ilp", covs_Y, self.T, self.T)
+            np.einsum("ijk,jl,kp->ilp", covs_Y, self.T, self.T)
         )
         return X, Y_transformed
 
@@ -295,7 +294,7 @@ class EnergyStochasticMetric:
             Aligned second network's responses, with Size[(images, repeats, neurons)].
         """
         assert X.shape == Y.shape
-        Y_aligned = contract("ijk,kl->ijl", Y, self.Q)
+        Y_aligned = np.einsum("ijk,kl->ijl", Y, self.Q)
         return X, Y_aligned
 
     def score(self, X: npt.NDArray, Y: npt.NDArray) -> float:
@@ -364,10 +363,10 @@ def _fit_gaussian_alignment(
     """Helper function for fitting alignment between Gaussian-distributed responses."""
 
     vX, uX = np.linalg.eigh(covs_X)
-    sX = contract("ijk,ik,ilk->ijl", uX, np.sqrt(vX), uX)
+    sX = np.einsum("ijk,ik,ilk->ijl", uX, np.sqrt(vX), uX)
     
     vY, uY = np.linalg.eigh(covs_Y)
-    sY = contract("ijk,ik,ilk->ijl", uY, np.sqrt(vY), uY)
+    sY = np.einsum("ijk,ik,ilk->ijl", uY, np.sqrt(vY), uY)
 
     loss_hist = []
 
