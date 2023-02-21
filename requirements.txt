@@ -43,7 +43,6 @@ nest-asyncio==1.5.5
 -e git+https://github.com/ahwillia/netrep@0c5c06e3612da75ad3580321bd6e50ab8743d00b#egg=netrep
 notebook==6.4.12
 numpy==1.22.4
-opt-einsum==3.3.0
 osqp==0.6.2.post5
 packaging==21.3
 pandocfilters==1.5.0
