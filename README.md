@@ -6,7 +6,7 @@ In neuroscience and in deep learning, quantifying the (dis)similarity of neural 
 
 This code package computes [*metrics*](https://en.wikipedia.org/wiki/Metric_(mathematics)) &mdash; notions of distance that satisfy the [triangle inequality](https://en.wikipedia.org/wiki/Triangle_inequality) &mdash; between neural representations. If we record the activity of `K` networks, we can compute all pairwise distances and collect them into a `K × K` distance matrix. The triangle inequality ensures that all of these distance relationships are, in some sense, self-consistent. This self-consistency enables us to apply off-the-shelf algorithms for clustering and dimensionality reduction, which are available through many open-source packages such as [scikit-learn](https://scikit-learn.org/).
 
-We published a [**conference paper (Neurips '21)**](https://arxiv.org/abs/2110.14739) describing these ideas.
+Two conference papers **([Neurips '21](https://arxiv.org/abs/2110.14739), [ICLR '23](https://arxiv.org/abs/2211.11665))** describe the approach
 
 ```
 @inproceedings{neural_shape_metrics,
@@ -15,18 +15,13 @@ We published a [**conference paper (Neurips '21)**](https://arxiv.org/abs/2110.1
   year = {2021},
   booktitle = {Advances in Neural Information Processing Systems},
   volume = {34},
-  url = {https://arxiv.org/abs/2110.14739}
 }
-```
 
-Recently, we [**posted a preprint**](https://arxiv.org/abs/2211.11665) which extends these ideas to measure distances between stochastic network layers.
-
-```
-@misc{2211.11665,
+@inproceedings{stochastic_neural_shape_metrics,
   author = {Lyndon R. Duong and Jingyang Zhou and Josue Nassar and Jules Berman and Jeroen Olieslagers and Alex H. Williams},
   title = {Representational dissimilarity metric spaces for stochastic neural networks},
-  year = {2022},
-  eprint = {arXiv:2211.11665},
+  year = {2023},
+  booktitle = {International Conference on Learning Representations},
 }
 ```
 
