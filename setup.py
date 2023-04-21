@@ -6,7 +6,7 @@ setuptools.setup(
     url="https://github.com/ahwillia/netrep",
 
     author="Alex Williams",
-    author_email="ahwillia@stanford.edu",
+    author_email="alex.h.williams@nyu.edu",
 
     description="Simple methods for comparing network representations.",
 
