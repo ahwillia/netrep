@@ -137,7 +137,7 @@ class GaussianStochasticMetric:
         means_Y, covs_Y = Y
         Y_transformed = (
             means_Y @ self.T,
-            np.einsum("ijk,jl,kp->ilp", covs_Y, self.T, self.T)
+            np.einsum("ijk,jl,kp->ilp", covs_Y, self.T, self.T, optimize=True)
         )
         return X, Y_transformed
 
@@ -294,7 +294,7 @@ class EnergyStochasticMetric:
             Aligned second network's responses, with Size[(images, repeats, neurons)].
         """
         assert X.shape == Y.shape
-        Y_aligned = np.einsum("ijk,kl->ijl", Y, self.Q)
+        Y_aligned = np.einsum("ijk,kl->ijl", Y, self.Q, optimize=True)
         return X, Y_aligned
 
     def score(self, X: npt.NDArray, Y: npt.NDArray) -> float:
@@ -363,10 +363,10 @@ def _fit_gaussian_alignment(
     """Helper function for fitting alignment between Gaussian-distributed responses."""
 
     vX, uX = np.linalg.eigh(covs_X)
-    sX = np.einsum("ijk,ik,ilk->ijl", uX, np.sqrt(vX), uX)
+    sX = np.einsum("ijk,ik,ilk->ijl", uX, np.sqrt(vX), uX, optimize=True)
     
     vY, uY = np.linalg.eigh(covs_Y)
-    sY = np.einsum("ijk,ik,ilk->ijl", uY, np.sqrt(vY), uY)
+    sY = np.einsum("ijk,ik,ilk->ijl", uY, np.sqrt(vY), uY, optimize=True)
 
     loss_hist = []
 
