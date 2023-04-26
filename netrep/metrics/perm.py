@@ -14,7 +14,12 @@ class PermutationMetric(BaseEstimator):
     """Computes distance between two sets of optimally permutation-aligned representations.
     """
 
-    def __init__(self, center_columns: bool = True, zero_pad: bool = True):
+    def __init__(
+            self,
+            center_columns: bool = True,
+            zero_pad: bool = True,
+            score_method: Literal["angular", "euclidean"] = "angular"
+        ):
         """
         Parameters
         ----------
@@ -28,9 +33,20 @@ class PermutationMetric(BaseEstimator):
             matrix is zero-padded prior to allow for an alignment.
             Some amount of regularization (alpha > 0) is required to
             align zero-padded representations.
+
+        score_method : {'angular','euclidean'}, default='angular'
+            String specifying ground metric.
         """
+
+        if score_method not in ("euclidean", "angular"):
+            raise ValueError(
+                "Expected `score_method` parameter to be in {'angular','euclidean'}. " +
+                f"Found instead score_method == '{score_method}'."
+            )
+
         self.center_columns = center_columns
         self.zero_pad = zero_pad
+        self.score_method = score_method
 
     def partial_fit(self, X: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
         """Computes partial whitening transformation for a neural response matrix.
@@ -121,8 +137,8 @@ class PermutationMetric(BaseEstimator):
         return self.fit(X, Y).score(X, Y)
 
     def score(self, X: npt.NDArray, Y: npt.NDArray) -> float:
-        """Computes the angular distance between X and Y in
-        the aligned space.
+        """Computes the distance between X and Y in the aligned
+        space.
 
         Parameters
         ----------
@@ -134,28 +150,15 @@ class PermutationMetric(BaseEstimator):
         Returns
         -------
         dist : float
-            Angular distance between X and Y.
+            Distance between X and Y.
         """
-        return angular_distance(*self.transform(X, Y))
+        if self.score_method == "angular":
+            return angular_distance(*self.transform(X, Y))
+        else: # self.score_method == "euclidean":
+            return np.linalg.norm(
+                np.subtract(*self.transform(X, Y)), ord="fro"
+            )
 
-    def score_euclidean(self, X: npt.NDArray, Y: npt.NDArray) -> float:
-        """Computes the average Euclidean distance between the
-        rows of X and Y in the aligned space.
-
-        Parameters
-        ----------
-        X : ndarray
-            (num_samples x num_neurons) matrix of activations.
-        Y : ndarray
-            (num_samples x num_neurons) matrix of activations.
-
-        Returns
-        -------
-        dist : float
-            Angular distance between X and Y.
-        """
-        resid = np.subtract(*self.transform(X, Y))
-        return np.mean(np.linalg.norm(resid, axis=1))
 
     def _transform_X(self, X: npt.NDArray) -> npt.NDArray:
         """Transform X into the aligned space."""

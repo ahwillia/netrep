@@ -145,7 +145,8 @@ def test_triangle_inequality_linear(seed, alpha, m, n):
 @pytest.mark.parametrize('center_columns', [True, False])
 @pytest.mark.parametrize('m', [100])
 @pytest.mark.parametrize('n', [10])
-def test_permutation(seed, center_columns, m, n):
+@pytest.mark.parametrize('score_method', ['euclidean', 'angular'])
+def test_permutation(seed, center_columns, m, n, score_method):
 
     # Set random seed, draw random rotation
     rs = check_random_state(seed)
@@ -155,7 +156,9 @@ def test_permutation(seed, center_columns, m, n):
     Y = np.copy(X)[:, rs.permutation(n)]
 
     # Fit model, assert distance == 0.
-    metric = PermutationMetric(center_columns=center_columns)
+    metric = PermutationMetric(
+        center_columns=center_columns, score_method=score_method
+    )
     assert abs(metric.fit(X, Y).score(X, Y)) < TOL
 
 
