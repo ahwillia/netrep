@@ -10,8 +10,6 @@ from sklearn.utils.validation import check_random_state
 TOL = 1e-6
 
 
-@pytest.mark.parametrize('seed', [1, 2, 3])
-@pytest.mark.parametrize('m', [100])
 @pytest.mark.parametrize('n', [10])
 def test_uncentered_procrustes(seed, m, n):
 

@@ -120,27 +120,3 @@ def test_energy_distance(seed, m, n, p, noise):
 
     # Check that loss monotonically decreases.
     assert np.all(np.diff(metric.loss_hist) <= TOL)
-
-
-@pytest.mark.parametrize('seed', [1, 2, 3])
-@pytest.mark.parametrize('m', [4])
-@pytest.mark.parametrize('n', [4])
-@pytest.mark.parametrize('p', [100])
-@pytest.mark.parametrize('noise', [0.1])
-def test_energy_distance(seed, m, n, p, noise):
-
-    # Set random seed, draw random rotation
-    rs = check_random_state(seed)
-    Q = rand_orth(n, n, random_state=rs)
-
-    # Create a pair of randomly rotated Gaussians.
-    xm = rs.randn(m, n)
-    X = xm[:, None, :] + noise * rs.randn(m, p, n)
-    Y = (xm @ Q)[:, None, :] + noise * rs.randn(m, p, n)
-
-    # Fit model.
-    metric = EnergyStochasticMetric(group="orth")
-    metric.fit(X, Y)
-
-    # Check that loss monotonically decreases.
-    assert np.all(np.diff(metric.loss_hist) <= TOL)

@@ -1,10 +1,12 @@
 from __future__ import annotations
 import itertools
+import multiprocessing
 from typing import Tuple, Optional, Union, Literal, List
 
 import numpy as np
 import numpy.typing as npt
 from sklearn.utils.validation import check_random_state
+from tqdm import tqdm
 
 from netrep.utils import align, sq_bures_metric, rand_orth
 
@@ -201,7 +203,90 @@ class GaussianStochasticMetric:
             Interpolated 2-Wasserstein distance between aligned network responses.
         """
         return self.fit(X, Y).score(X, Y)
+    
+    def _compute_distance(self, i, j, X, Y, X_test, Y_test, eps):
+        """Helper function for multiprocessing."""
+        X = (X[0], X[1] + eps * np.eye(X[1].shape[1]))  # regularize covariance
+        Y = (Y[0], Y[1] + eps * np.eye(Y[1].shape[1]))
 
+        self.fit(X, Y)
+        dist_train = self.score(X, Y)
+        if X_test is None and Y_test is None:
+            dist_test = np.inf
+        else: 
+            dist_test = self.score(X_test, Y_test)
+        return i, j, dist_train, dist_test
+
+    def _compute_distance_star(self, args):
+        """Helper function for multiprocessing.
+        Using this allows us to use tqdm to track progress via imap_unordered.
+        """
+        return self._compute_distance(*args)
+   
+    def pairwise_distances(
+            self, 
+            train_data: List[Tuple[npt.NDArray, npt.NDArray]], 
+            test_data: Optional[List[Tuple[npt.NDArray, npt.NDArray]]]=None, 
+            eps: float = 1E-6,
+            processes: Optional[int] = None,
+            verbose: bool = True,
+            ):
+        """Computes pairwise distances between all pairs of networks w/ multiprocessing.
+
+        We suggest setting "OMP_NUM_THREADS=1" in your environment variables to avoid oversubscription 
+        (multiprocesses competing for the same CPU).
+
+        Parameters
+        ----------
+        train_data:  List[Tuple[npt.NDArray, npt.NDArray]]
+            List of tuples of (means, covariances) for train data.
+        test_data: List[Tuple[npt.NDArray, npt.NDArray]], optional
+            List of tuples of (means, covariances) for test data. If None, the output
+            distance matrix will be np.inf.
+        eps: float, optional
+            Add eps * I to each covariances to regularize.
+        processes: int, optional
+            Number of processes to use. If None, defaults to number of CPUs.
+        verbose: bool, optional
+            Whether to display progress bar.
+        
+        Returns
+        -------
+        D_train: npt.NDArray
+            n_networks x n_networks distance matrix.
+        D_test: npt.NDArray
+            n_networks x n_networks distance matrix. If test_data is None, this is
+            a matrix of np.inf.
+        """
+        n_networks = len(train_data)
+        n_dists = n_networks*(n_networks-1)//2
+
+        # create generator of args for multiprocessing
+        ij = itertools.combinations(range(n_networks), 2)
+        if test_data is None:
+            args = ((i, j, train_data[i], train_data[j], None, None, eps) for i, j in ij)
+        else:
+            args = ((i, j, train_data[i], train_data[j], test_data[i], test_data[j], eps) for i, j in ij)
+
+        if verbose:
+            print(f"Parallelizing {n_dists} distance calculations with {multiprocessing.cpu_count() if processes is None else processes} processes.")
+            pbar = lambda x: tqdm(x, total=n_dists, desc="Computing distances")
+        else:
+            pbar = lambda x: x
+
+        with multiprocessing.Pool(processes=processes) as pool:
+            results = []
+            for result in pbar(pool.imap_unordered(self._compute_distance_star, args)):
+                results.append(result)
+
+        D_train = np.zeros((n_networks, n_networks))
+        D_test = np.zeros((n_networks, n_networks))
+
+        for i, j, dist_train, dist_test in results:
+            D_train[i, j], D_train[j, i] = dist_train, dist_train
+            D_test[i, j], D_test[j, i] = dist_test, dist_test
+
+        return D_train, D_test
 
 class EnergyStochasticMetric:
     """Optimal alignment of network responses using energy distance as the ground metric.
@@ -347,6 +432,87 @@ class EnergyStochasticMetric:
             Energy distance metric between two networks.
         """
         return self.fit(X, Y).score(X, Y)
+
+    def _compute_distance(self, i, j, X, Y, X_test, Y_test):
+        """Helper function for multiprocessing."""
+
+        self.fit(X, Y)
+        dist_train = self.score(X, Y)
+        if X_test is None and Y_test is None:
+            dist_test = np.inf
+        else: 
+            dist_test = self.score(X_test, Y_test)
+        return i, j, dist_train, dist_test
+
+    def _compute_distance_star(self, args):
+        """Helper function for multiprocessing.
+        Using this allows us to use tqdm to track progress via imap_unordered.
+        """
+        return self._compute_distance(*args)
+
+    def pairwise_distances(
+            self, 
+            train_data: List[Tuple[npt.NDArray, npt.NDArray]], 
+            test_data: Optional[List[Tuple[npt.NDArray, npt.NDArray]]]=None, 
+            processes: Optional[int] = None,
+            verbose: bool = True,
+            ):
+        """Computes pairwise distances between all pairs of networks w/ multiprocessing.
+
+        We suggest setting "OMP_NUM_THREADS=1" in your environment variables to avoid oversubscription 
+        (multiprocesses competing for the same CPU).
+
+        Parameters
+        ----------
+        train_data:  List[npt.NDArray]
+            List of Size([images, repeats, neurons]) for train data.
+        test_data: List[npt.NDArray], optional
+            List of Size([images, repeats, neurons]) for test data. If None, the output
+            distance matrix will be np.inf.
+        processes: int, optional
+            Number of processes to use. If None, defaults to number of CPUs.
+        verbose: bool, optional
+            Whether to display progress bar.
+        
+        Returns
+        -------
+        D_train: npt.NDArray
+            n_networks x n_networks distance matrix.
+        D_test: npt.NDArray
+            n_networks x n_networks distance matrix. If test_data is None, this is
+            a matrix of np.inf.
+        """
+        n_networks = len(train_data)
+        n_dists = n_networks*(n_networks-1)//2
+
+        # create generator of args for multiprocessing
+        ij = itertools.combinations(range(n_networks), 2)
+        if test_data is None:
+            args = ((i, j, train_data[i], train_data[j], None, None) for i, j in ij)
+        else:
+            args = ((i, j, train_data[i], train_data[j], test_data[i], test_data[j]) for i, j in ij)
+
+        if verbose:
+            print(f"Parallelizing {n_dists} distance calculations with {multiprocessing.cpu_count() if processes is None else processes} processes.")
+            pbar = lambda x: tqdm(x, total=n_dists, desc="Computing distances")
+        else:
+            pbar = lambda x: x
+
+        with multiprocessing.Pool(processes=processes) as pool:
+            results = []
+            for result in pbar(pool.imap_unordered(self._compute_distance_star, args)):
+                results.append(result)
+            pool.close()
+            pool.join()
+        
+        D_train = np.zeros((n_networks, n_networks))
+        D_test = np.zeros((n_networks, n_networks))
+
+        for i, j, dist_train, dist_test in results:
+            D_train[i, j], D_train[j, i] = dist_train, dist_train
+            D_test[i, j], D_test[j, i] = dist_test, dist_test
+
+        return D_train, D_test
 
 
 def _fit_gaussian_alignment(
