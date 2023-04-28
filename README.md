@@ -25,13 +25,13 @@ Two conference papers **([Neurips '21](https://arxiv.org/abs/2110.14739), [ICLR 
 }
 ```
 
-We also presented an early version of this work at Cosyne (see [**7 minute summary on youtube**](https://www.youtube.com/watch?v=Lt_Vo-tQcW0)) in early 2021.
+We presented an early version of this work at COSYNE 2021 (see [**7 minute summary on youtube**](https://www.youtube.com/watch?v=Lt_Vo-tQcW0)), and a full workshop talk at  COSYNE 2023 ([**30 minute talk on youtube**](https://www.youtube.com/watch?v=e02DWc2z8Hc)).
 
 **Note:** This research code remains a work-in-progress to some extent. It could use more documentation and examples. Please use at your own risk and reach out to us (alex.h.willia@gmail.com) if you have questions.
 
 ## A short and preliminary guide
 
-To install, set up standard python libraries (https://ipython.org/install.html) and then install via `pip`:
+To install, set up standard python libraries (<https://ipython.org/install.html>) and then install via `pip`:
 
 ```
 git clone https://github.com/ahwillia/netrep
@@ -41,7 +41,7 @@ pip install -e .
 
 Since the code is preliminary, you will be able to use `git pull` to get updates as we release them.
 
-### Computing the distance between two networks 
+### Computing the distance between two networks
 
 The metrics implemented in this library are extensions of [Procrustes distance](https://en.wikipedia.org/wiki/Procrustes_analysis). Some useful background can be found in Dryden &amp; Mardia's textbook on [*Statistical Shape Analysis*](https://www.wiley.com/en-us/Statistical+Shape+Analysis%3A+With+Applications+in+R%2C+2nd+Edition-p-9780470699621).
 
@@ -188,11 +188,13 @@ dist = metric.score(Xi, Xj)
 
 Things start to get really interesting when we start to consider larger cohorts containing more than just two networks. The `netrep.multiset` file contains some useful methods. Let `Xs = [X1, X2, X3, ..., Xk]` be a list of `num_samples x num_neurons` matrices similar to those described above. We can do the following:
 
-**1) Computing all pairwise distances.** The following returns a symmetric `k x k` matrix of distances.
+**Computing all pairwise distances.** The following returns a symmetric `k x k` matrix of distances.
 
 ```python
 metric = LinearMetric(alpha=1.0)
-dist_matrix = pairwise_distances(metric, Xs, verbose=False)
+
+# Compute kxk distance matrices (leverages multiprocessing).
+dist_matrix, _ = metric.pairwise_distances(Xs)
 ```
 
 By setting `verbose=True`, we print out a progress bar which might be useful for very large datasets.
@@ -206,94 +208,5 @@ traindata = [X_train for (X_train, X_test) in splitdata]
 testdata = [X_test for (X_train, X_test) in splitdata]
 
 # Compute all pairwise train and test distances.
-train_dists, test_dists = pairwise_distances(metric, traindata, testdata=testdata)
+train_dists, test_dists = metric.pairwise_distances(traindata, testdata)
 ```
-
-**2) Using the pairwise distance matrix.** Many of the methods in [`sklearn.cluster`](https://scikit-learn.org/stable/modules/clustering.html#clustering) and [`sklearn.manifold`](https://scikit-learn.org/stable/modules/classes.html#module-sklearn.manifold) will work and operate directly on these distance matrices.
-
-For example, to perform *clustering* over the cohort of networks, we could do:
-
-```python
-# Given
-# -----
-# dist_matrix : (num_networks x num_networks) symmetric distance matrix, computed as described above.
-
-# DBSCAN clustering
-from sklearn.cluster import DBSCAN
-cluster_ids = DBSCAN(metric="precomputed").fit_transform(dist_matrix)
-
-# Agglomerative clustering
-from sklearn.cluster import AgglomerativeClustering
-cluster_ids = AgglomerativeClustering(n_clusters=5, affinity="precomputed").fit_transform(dist_matrix)
-
-# OPTICS
-from sklearn.cluster import OPTICS
-cluster_ids = OPTICS(metric="precomputed").fit_transform(dist_matrix)
-
-# Scipy hierarchical clustering
-from scipy.cluster import hierarchy
-from scipy.spatial.distance import squareform
-hierarchy.ward(squareform(dist_matrix)) # return linkage
-```
-
-We can also visualize the set of networks in 2D space by using manifold learning methods:
-
-```python
-# Given
-# -----
-# dist_matrix : (num_networks x num_networks) symmetric distance matrix, computed as described above.
-
-# Multi-dimensional scaling
-from sklearn.manifold import MDS
-lowd_embedding = MDS(dissimilarity="precomputed").fit_transform(dist_matrix)
-
-# t-distributed Stochastic Neighbor Embedding
-from sklearn.manifold import TSNE
-lowd_embedding = TSNE(dissimilarity="precomputed").fit_transform(dist_matrix)
-
-# Isomap
-from sklearn.manifold import Isomap
-lowd_embedding = Isomap(dissimilarity="precomputed").fit_transform(dist_matrix)
-
-# etc., etc.
-```
-
-**3) K-means clustering and averaging across networks**
-
-We can average across networks using the metric spaces defined above. Specifically, we can compute a [Fréchet/Karcher mean](https://en.wikipedia.org/wiki/Fr%C3%A9chet_mean) in the metric space. See also the section on *"Generalized Procrustes Analysis"* in Gower & Dijksterhuis (2004). 
-
-```python
-from netrep.multiset import procrustes_average
-Xbar = procrustes_average(Xs, max_iter=100, tol=1e-4)
-```
-
-Further, we can extend the well-known [k-means clustering](https://en.wikipedia.org/wiki/K-means_clustering) algorithm to the metric space defined by Procrustes distance.
-
-```python
-from netrep.multiset import procrustes_kmeans
-
-# Fit 3 clusters
-n_clusters = 3
-centroids, labels, cent_dists = procrustes_kmeans(Xs, n_clusters)
-```
-
-## An incomplete list of related work
-
-Dabagia, Max, Konrad P. Kording, and Eva L. Dyer (forthcoming). "[Comparing high-dimensional neural recordings by aligning their low-dimensional latent representations](https://cpb-us-w2.wpmucdn.com/sites.gatech.edu/dist/9/630/files/2020/05/Dabagia_Comparing2020.pdf).” Nature Biomedical Engineering
-
-Degenhart, A. D., Bishop, W. E., Oby, E. R., Tyler-Kabara, E. C., Chase, S. M., Batista, A. P., & Byron, M. Y. (2020). [Stabilization of a brain–computer interface via the alignment of low-dimensional spaces of neural activity](https://www.nature.com/articles/s41551-020-0542-9?proof=t). Nature biomedical engineering, 4(7), 672-685.
-
-Gower, J. C., & Dijksterhuis, G. B. (2004). Procrustes problems (Vol. 30). Oxford University Press.
-
-Gallego, J. A., Perich, M. G., Chowdhury, R. H., Solla, S. A., & Miller, L. E. (2020). [Long-term stability of cortical population dynamics underlying consistent behavior](https://www.nature.com/articles/s41467-018-06560-z). Nature neuroscience, 23(2), 260-270.
-
-Haxby, J. V., Guntupalli, J. S., Nastase, S. A., & Feilong, M. (2020). [Hyperalignment: Modeling shared information encoded in idiosyncratic cortical topographies](https://elifesciences.org/articles/56601). Elife, 9, e56601.
-
-Kornblith, S., Norouzi, M., Lee, H., & Hinton, G. (2019, May). [Similarity of neural network representations revisited](https://arxiv.org/abs/1905.00414). In International Conference on Machine Learning (pp. 3519-3529). PMLR.
-
-Kriegeskorte, N., Mur, M., & Bandettini, P. A. (2008). [Representational similarity analysis-connecting the branches of systems neuroscience](https://doi.org/10.3389/neuro.06.004.2008). Frontiers in systems neuroscience, 2, 4.
-
-Maheswaranathan, N., Williams, A. H., Golub, M. D., Ganguli, S., & Sussillo, D. (2019). [Universality and individuality in neural dynamics across large populations of recurrent networks](https://arxiv.org/abs/1907.08549). Advances in neural information processing systems, 2019, 15629.
-
-Raghu, M., Gilmer, J., Yosinski, J., & Sohl-Dickstein, J. (2017). [Svcca: Singular vector canonical correlation analysis for deep learning dynamics and interpretability](https://arxiv.org/abs/1706.05806). arXiv preprint arXiv:1706.05806.
-
