@@ -4,7 +4,7 @@
 
 In neuroscience and in deep learning, quantifying the (dis)similarity of neural representations across networks is a topic of substantial interest.
 
-This code package computes [*metrics*](https://en.wikipedia.org/wiki/Metric_(mathematics)) &mdash; notions of distance that satisfy the triangle inequality &mdash; between neural representations. If we record the activity of `K` networks, we can compute all pairwise distances and collect them into a `K × K` distance matrix. The triangle inequality ensures that all of these distance relationships are, in some sense, self-consistent. This self-consistency enables us to apply off-the-shelf algorithms for clustering and dimensionality reduction, which are available through many open-source packages such as [scikit-learn](https://scikit-learn.org/).
+This code package computes [*metrics*](https://en.wikipedia.org/wiki/Metric_(mathematics)) &mdash; notions of distance that satisfy the triangle inequality &mdash; between neural representations. If we record the activity of `K` networks, we can compute all pairwise distances and collect them into a `K × K` distance matrix. The triangle inequality ensures that all of these distance relationships are, in some sense, self-consistent. This enables us to apply off-the-shelf algorithms for clustering and dimensionality reduction, which are available through many open-source packages such as [scikit-learn](https://scikit-learn.org/).
 
 Two conference papers **([Neurips '21](https://arxiv.org/abs/2110.14739), [ICLR '23](https://arxiv.org/abs/2211.11665))** describe the approach
 
