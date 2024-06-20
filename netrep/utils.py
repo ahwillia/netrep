@@ -81,7 +81,8 @@ def sq_bures_metric(A: npt.NDArray, B: npt.NDArray) -> float:
     """
     va, ua = np.linalg.eigh(A)
     vb, ub = np.linalg.eigh(B)
-    sva, svb = np.sqrt(va), np.sqrt(vb)
+    sva = np.sqrt(np.maximum(va, 0.0))
+    svb = np.sqrt(np.maximum(vb, 0.0))
     return (
         np.sum(va) + np.sum(vb) - 2 * np.sum(
             np.linalg.svd(
