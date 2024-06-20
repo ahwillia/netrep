@@ -69,7 +69,7 @@ def sq_bures_metric_slow(A: npt.NDArray, B: npt.NDArray) -> float:
     positive-definite matrices.
     """
     va, ua = np.linalg.eigh(A)
-    Asq = ua @ (np.sqrt(va[:, None]) * ua.T)
+    Asq = ua @ (np.sqrt(np.maximum(va[:, None], 0.0)) * ua.T)
     return (
         np.trace(A) + np.trace(B) - 2 * np.sum(np.sqrt(np.linalg.eigvalsh(Asq @ B @ Asq)))
     )
