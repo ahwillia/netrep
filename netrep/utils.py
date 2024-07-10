@@ -70,8 +70,9 @@ def sq_bures_metric_slow(A: npt.NDArray, B: npt.NDArray) -> float:
     """
     va, ua = np.linalg.eigh(A)
     Asq = ua @ (np.sqrt(np.maximum(va[:, None], 0.0)) * ua.T)
+    vbab = np.maximum(np.linalg.eigvalsh(Asq @ B @ Asq), 0.0)
     return (
-        np.trace(A) + np.trace(B) - 2 * np.sum(np.sqrt(np.linalg.eigvalsh(Asq @ B @ Asq)))
+        np.trace(A) + np.trace(B) - 2 * np.sum(np.sqrt(vbab))
     )
 
 
