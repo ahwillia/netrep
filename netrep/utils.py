@@ -64,6 +64,11 @@ def align(
         raise ValueError(f"Specified group '{group}' not recognized.")
 
 
+def posdefsqrt(A):
+    va, ua = np.linalg.eigh(A)
+    return (ua * np.sqrt(np.maximum(va, 0.0))[None, :]) @ ua.T
+
+
 def sq_bures_metric_slow(A: npt.NDArray, B: npt.NDArray) -> float:
     """Slow way to compute the square of the Bures metric between two
     positive-definite matrices.
