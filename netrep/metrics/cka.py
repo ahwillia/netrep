@@ -1,6 +1,8 @@
 import numpy as np
 from sklearn.base import BaseEstimator
 
+from netrep.utils import angular_distance
+
 class LinearCKA:
     """
     Note: This function differs from the one outlined in
