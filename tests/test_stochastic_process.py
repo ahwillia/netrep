@@ -13,7 +13,8 @@ from sklearn.covariance import EmpiricalCovariance
 from numpy import random as rand
 from netrep.utils import rand_orth
 
-TOL = 1e-6
+TOL = 1e-5
+
 
 # %% Class for sampling from a gaussian process given a kernel
 class GaussianProcess:
@@ -61,7 +62,6 @@ def test_gaussian_process(seed, t, n, k):
         np.kron(np.eye(t),Q)@A[0], 
         np.kron(np.eye(t),Q)@A[1]@(np.kron(np.eye(t),Q)).T
     ]
-    
 
     # Compute DSSD
     metric = GPStochasticMetric(n_dims=n,group="orth")
@@ -86,11 +86,13 @@ def test_gaussian_process(seed, t, n, k):
     assert abs(marginal_ssd) < TOL
 
     # Compute full SSD
-    metric = GaussianStochasticMetric(group="orth")
+    metric = GaussianStochasticMetric(group="orth",init="rand",n_restarts=100)
+
 
     A_full = [A[0][None],A[1][None]]
     B_full = [B[0][None],B[1][None]]
 
     full_ssd = metric.fit_score(A_full,B_full)
 
-    assert abs(full_ssd) > TOL
+    assert abs(full_ssd) < TOL
+

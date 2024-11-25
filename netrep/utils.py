@@ -4,6 +4,7 @@ Miscellaneous helper functions.
 from typing import Tuple, Literal, Union, Optional
 
 import numpy as np
+import scipy as sp
 import numpy.typing as npt
 from scipy.linalg import orthogonal_procrustes
 from scipy.optimize import linear_sum_assignment
@@ -97,6 +98,27 @@ def sq_bures_metric(A: npt.NDArray, B: npt.NDArray) -> float:
             )
         )
     )
+
+
+
+def safe_sqrt(x):
+    return np.sqrt(np.maximum(x, 0))
+
+def safe_cholesky(C):
+    try: L_C = sp.linalg.cholesky(C)
+    except sp.linalg.LinAlgError:
+        L, D, _ = sp.linalg.ldl(C)
+        L_C = L @ safe_sqrt(D)
+    return L_C
+
+def sq_adapted_bures_metric(cov_A, cov_B):
+    '''Compute the square of the Adapted Bures metric between two
+     positive-definite matrices'''
+    L_A = safe_cholesky(cov_A)
+    L_B = safe_cholesky(cov_B)
+    # assert (np.diag(L_A @ L_B.T) >= -1e-6).all()
+    # return np.trace(cov_A) + np.trace(cov_B) - 2 * np.trace(L_A.T @ L_B)
+    return np.trace(cov_A) + np.trace(cov_B) - 2 * np.linalg.norm(np.diag(L_A.T @ L_B), ord=1)
 
 
 def centered_kernel(*args, **kwargs):

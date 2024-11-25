@@ -2,7 +2,7 @@ import itertools
 import numpy as np
 from tqdm import tqdm
 from sklearn.utils.validation import check_array, check_random_state
-from netrep.utils import align
+from netrep.utils import align, whiten
 
 
 def euclidean_tangent_space(Xs, Xbar, group="orth"):
@@ -209,7 +209,8 @@ def frechet_mean(
         Xs, group="orth",
         random_state=None, tol=1e-3, max_iter=100,
         warmstart=None, verbose=False, method="streaming",
-        return_aligned_Xs=False
+        return_aligned_Xs=False,
+        alpha=1.
     ):
     """
     Estimate the average (Karcher/Frechet mean) of p networks in the
@@ -259,12 +260,12 @@ def frechet_mean(
     if method == "streaming":
         Xbar = _euclidean_barycenter_streaming(
             Xs, group, random_state, tol, max_iter, warmstart,
-            verbose
+            verbose, alpha
         )
     elif method == "full_batch":
         Xbar = _euclidean_barycenter_full_batch(
             Xs, group, random_state, tol, max_iter, warmstart,
-            verbose
+            verbose, alpha
         )
 
     if return_aligned_Xs:
@@ -276,7 +277,7 @@ def frechet_mean(
 
 
 def _euclidean_barycenter_full_batch(
-        Xs, group, random_state, tol, max_iter, warmstart, verbose
+        Xs, group, random_state, tol, max_iter, warmstart, verbose, alpha
     ):
     """
     Parameters
@@ -324,9 +325,13 @@ def _euclidean_barycenter_full_batch(
     # Check random state and initialize random permutation over networks.
     rs = check_random_state(random_state)
 
+    for i in range(len(Xs)):
+        Xs[i], _ = whiten(Xs[i], alpha, preserve_variance=True)
+
     # Initialize barycenter.
     Xbar = Xs[np.random.randint(len(Xs))] if (warmstart is None) else warmstart
     X0 = np.empty_like(Xbar)
+
 
     # Main loop
     itercount, n, chg = 0, 1, np.inf
@@ -343,6 +348,8 @@ def _euclidean_barycenter_full_batch(
 
         Xbar /= len(Xs)
 
+        Xbar, _ = whiten(Xbar, alpha, preserve_variance=True)
+
         # Detect convergence.
         chg = np.linalg.norm(Xbar - X0) / np.sqrt(Xbar.size)
 
@@ -357,7 +364,7 @@ def _euclidean_barycenter_full_batch(
 
 
 def _euclidean_barycenter_streaming(
-        Xs, group, random_state, tol, max_iter, warmstart, verbose
+        Xs, group, random_state, tol, max_iter, warmstart, verbose, alpha
     ):
     """
     Parameters
@@ -409,9 +416,11 @@ def _euclidean_barycenter_streaming(
     rs = check_random_state(random_state)
     indices = rs.permutation(len(Xs))
 
+    for i in range(len(Xs)):
+        Xs[i], _ = whiten(Xs[i], alpha, preserve_variance=True)
+        
     # Initialize barycenter.
     Xbar = Xs[indices[-1]] if (warmstart is None) else warmstart
-    print(Xbar.shape)
     X0 = np.empty_like(Xbar)
 
     # Main loop
@@ -430,7 +439,9 @@ def _euclidean_barycenter_streaming(
             # Take a small step towards aligned representation.
             Xbar = (n / (n + 1)) * Xbar + (1 / (n + 1)) * XQ
             n += 1
-
+        
+        Xbar, _ = whiten(Xbar, alpha, preserve_variance=True)
+        
         # Detect convergence.
         chg = np.linalg.norm(Xbar - X0) / np.sqrt(Xbar.size)
 

@@ -3,12 +3,14 @@ import itertools
 import multiprocessing
 from typing import Tuple, Optional, Union, Literal, List
 
+import scipy as sp
 import numpy as np
+
 import numpy.typing as npt
 from sklearn.utils.validation import check_random_state
 from tqdm import tqdm
 
-from netrep.utils import align, sq_bures_metric, rand_orth
+from netrep.utils import align, sq_bures_metric, rand_orth, sq_adapted_bures_metric, safe_cholesky, safe_sqrt
 
 
 class GPStochasticMetric:
@@ -42,6 +44,7 @@ class GPStochasticMetric:
             n_dims,
             alpha: float=1.0, 
             group: Literal["orth", "perm", "identity"] = "orth", 
+            type: Literal["adapted", "non-adapted"] = "non-adapted",
             init: Literal["means", "rand"] = "means", 
             niter: int = 1000, 
             tol: float = 1e-8,
@@ -52,6 +55,7 @@ class GPStochasticMetric:
             raise ValueError("alpha parameter should be between zero and two.")
         self.alpha = alpha
         self.group = group
+        self.type = type
         self.init = init
         self.niter = niter
         self.tol = tol
@@ -104,10 +108,17 @@ class GPStochasticMetric:
             elif self.init == "rand":
                 init_T = rand_orth(means_X_t.shape[1], random_state=self._rs)
 
-            T, loss_hist = _fit_gp_alignment(
-                self.n_dims, means_X_t, means_Y_t, covs_X, covs_Y, init_T,
-                self.alpha, self.group, self.niter, self.tol
-            )
+            if self.type == "adapted":
+                T, loss_hist = _fit_adapted_gp_alignment(
+                    self.n_dims, means_X_t, means_Y_t, covs_X, covs_Y, init_T,
+                    self.alpha, self.group, self.niter, self.tol
+                )
+            elif self.type == "non-adapted":
+                T, loss_hist = _fit_gp_alignment(
+                    self.n_dims, means_X_t, means_Y_t, covs_X, covs_Y, init_T,
+                    self.alpha, self.group, self.niter, self.tol
+                )
+
             if best_loss > loss_hist[-1]:
                 best_loss = loss_hist[-1]
                 best_T = T
@@ -182,7 +193,12 @@ class GPStochasticMetric:
         mY, sY = Y
         
         A = np.sum((mX - mY) ** 2)
-        B = sq_bures_metric(sX, sY)
+
+        if self.type == 'adapted':
+            B = sq_adapted_bures_metric(sX, sY)
+        if self.type =='non-adapted':
+            B = sq_bures_metric(sX, sY)
+
         mn = np.mean(self.alpha * A + (2 - self.alpha) * B)
         # mn should always be positive but sometimes numerical rounding errors
         # cause mn to be very slightly negative, causing sqrt(mn) to be nan.
@@ -300,7 +316,6 @@ class GPStochasticMetric:
         return D_train, D_test
     
 
-
 def _fit_gp_alignment(
         n_dims: int,
         means_X: npt.NDArray, 
@@ -316,17 +331,16 @@ def _fit_gp_alignment(
     """Helper function for fitting alignment between Gaussian-distributed responses."""
 
     vX, uX = np.linalg.eigh(covs_X)
-    sX = np.einsum("jk,k,lk->jl", uX, np.sqrt(vX), uX, optimize=True)
+    sX = np.einsum("jk,k,lk->jl", uX, safe_sqrt(vX), uX, optimize=True)
     
     vY, uY = np.linalg.eigh(covs_Y)
-    sY = np.einsum("jk,k,lk->jl", uY, np.sqrt(vY), uY, optimize=True)
+    sY = np.einsum("jk,k,lk->jl", uY, safe_sqrt(vY), uY, optimize=True)
 
     loss_hist = []
 
     n_times = covs_X.shape[0]//n_dims
 
     for i in range(niter):
-
         Qs = align(np.kron(np.eye(n_times),T.T) @ sY, sX, group="orth")
         A = np.row_stack(
             [alpha * means_X] +
@@ -347,14 +361,85 @@ def _fit_gp_alignment(
 
     return T, loss_hist
 
+def _fit_adapted_gp_alignment(
+        n_dims: int,
+        means_X: npt.NDArray, 
+        means_Y: npt.NDArray, 
+        covs_X: npt.NDArray, 
+        covs_Y: npt.NDArray, 
+        T: npt.NDArray, 
+        alpha: float, 
+        group: Literal["orth", "perm", "identity"], 
+        niter: int, 
+        tol: float,
+    ) -> Tuple[npt.NDArray, List[float]]:
+    """Helper function for fitting alignment between Gaussian-distributed responses."""
 
-def split(array, nrows, ncols):
+    # Cholesky factorization of covariance matrices
+    # sX = np.linalg.cholesky(covs_X)
+    # sY = np.linalg.cholesky(covs_Y)
+    sX = safe_cholesky(covs_X)
+    sY = safe_cholesky(covs_Y)
+    
+    loss_hist = []
+
+    n_times = covs_X.shape[0]//n_dims
+    
+    # Evaluating the tensor M_{A,t}
+    # [F_0(\Sigma),F_1(\Sigma),\dots,F_T(Sigma)] for \Sigma_A
+    # where F_t(\Sigma) is [\Sigma_{tt},\vdots,\Sigma_{Tt}]
+    # Check appendix F for details
+    sX_splitted = split(sX, 1, n_dims, separate=True)[:,:,0]
+
+    # Evaluating the covariance part of the tall matrix N_A
+    # G(\mu,\Sigma) = [\mu_1^{\top}\vdots\mu_T^{\top},\Sigma_{11},\vdots,\Sigma{TT}]
+    # Check appendix F for details
+    sX_splitted_T = split(sX.T, n_dims, n_dims)
+
+    # Evaluating N_A
+    A = np.row_stack(
+        [alpha * means_X] +
+        [(2-alpha)*sX_splitted_T]
+    )
+
+    for i in range(niter):
+        # Evaluating M_{B,t}
+        sY_splitted = split(np.kron(np.eye(n_times),T.T) @ sY, 1, n_dims, separate=True)[:,:,0]
+        
+        # Solving for Qs (noise rotations)
+        Qs = [align(sy, sx) for sx, sy in zip(sX_splitted, sY_splitted)]
+
+        Q_flat = sp.linalg.block_diag(*Qs)
+        sY_splitted_T = split((sY@Q_flat).T, n_dims, n_dims)
+        
+        # Evaluating N_B
+        B = np.row_stack(
+            [alpha * means_Y] +
+            [(2-alpha)*sY_splitted_T]
+        )
+
+        # Solving for the spatial rotation
+        T = align(B, A, group=group)
+        
+        loss_hist.append(np.linalg.norm(A - B @ T))
+        
+        if i < 2:
+            pass
+        elif (loss_hist[-2] - loss_hist[-1]) < tol:
+            break
+
+    return T, loss_hist
+
+def split(array, nrows, ncols, separate=False):
     """Split a matrix into sub-matrices."""
     
     r, h = array.shape
     blocks = array.reshape(
         h//nrows, nrows, -1, ncols
-    ).swapaxes(1,2).reshape(-1, nrows, ncols)
+    ).swapaxes(1,2)
+
+    if separate: return blocks.transpose(1,0,2,3)
     
-    return blocks.reshape(-1,blocks.shape[-1])
+    return blocks.reshape(-1, nrows, ncols).reshape(-1,blocks.shape[-1])
+
 

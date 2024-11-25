@@ -186,6 +186,72 @@ metric.fit(Xi, Xj)
 dist = metric.score(Xi, Xj)
 ```
 
+## Dynamic stochastic shape metrics
+
+In addition to above, we provide methods to compare between stochastic and dynamic neural responses (e.g. biological neural network responses to stimulus repetitions as a function of time, or latent dynamic activations in diffusion models). The API is similar to `LinearMetric()`, but requires differently-formatted inputs.
+
+
+**1) Dynamic stochastic shape metrics using** `GPStochasticMetric()`
+
+The first method models network response distributions as Gaussian Process, and computes distances based on the analytic solution to the bi-causal optimal transport distance between two stochastic processes. This involves computing class-conditional means and covariances for each network, then computing the metric as follows.
+
+```python
+# Given
+# -----
+# Xi : Tuple[ndarray, ndarray]
+#    The first array is (num_neurons*num_times x 1) array of means and the second array is (num_neurons*num_times x num_neurons*num_times) covariance matrices of first network.
+#
+# Xj : Tuple[ndarray, ndarray]
+#    Same as Xi, but for the second network's responses.
+#
+# alpha: float between [0, 2]. 
+#    When alpha=2, this reduces to the deterministic shape metric. When alpha=1, this is the 2-Wasserstein between two Gaussians. When alpha=0, this is the Bures metric between the two sets of covariance matrices.
+
+# Fit alignment
+
+metric = GPStochasticMetric(
+    n_dims=num_neurons, # number of neurons
+    group="orth", 	# nuisance transformation 
+    type='adapted', 	# adapted or non-adapted optimal transport distance
+    alpha=alpha 	# alpha described above
+)
+
+metric.fit(Xi, Xj)
+
+# Evaluate the distance between the two networks
+dist = metric.score(Xi, Xj)
+```
+
+**2) Dynamic stochastic shape metrics using** `GPStochasticDiff()`
+
+We also provide dynamic stochastic shape metrics based on the differentiable optimization. The metric computes the same metric as in the previous section, but instead of alternating minimization it uses a differentiable optimization strategy.
+
+```python
+# Given
+# -----
+# Xi : ndarray, (num_neurons*num_times x 1)
+#    First network's responses.
+#
+# Xj : ndarray, (num_neurons*num_times x num_neurons*num_times)
+#    Same as Xi, but for the second network's responses.
+#
+
+# Fit alignment
+GPStochasticDiff(
+    n_dims=num_neurons, # number of neurons
+    n_times=num_times, 	# number of time points
+    type="Bures" 	# distance type, options are Bures, Adapted_Bures, Knothe_Rosenblatt, Marginal_Bures
+)
+
+# Evaluate the distance between the two networks
+dist = metric.fit_score(
+    Xi, Xj, 
+    lr=1e-3, 		# learning rate
+    tol=1e-5, 		# tolerance of optimization
+    epsilon=1e-6 	# used for well-conditioning covariances
+)
+```
+
 ### Computing distances between many networks
 
 Things start to get really interesting when we start to consider larger cohorts containing more than just two networks. The `netrep.multiset` file contains some useful methods. Let `Xs = [X1, X2, X3, ..., Xk]` be a list of `num_samples x num_neurons` matrices similar to those described above. We can do the following:
