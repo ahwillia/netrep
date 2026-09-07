@@ -338,8 +338,8 @@ class EnergyStochasticMetric:
         r = X.shape[1]
 
         idx = np.array(list(itertools.product(range(r), range(r))))
-        X = np.row_stack([x[idx[:, 0]] for x in X])
-        Y = np.row_stack([y[idx[:, 1]] for y in Y])
+        X = np.vstack([x[idx[:, 0]] for x in X])
+        Y = np.vstack([y[idx[:, 1]] for y in Y])
 
         w = np.ones(X.shape[0])
         loss_hist = [np.mean(np.linalg.norm(X - Y, axis=-1))]
@@ -538,12 +538,12 @@ def _fit_gaussian_alignment(
 
     for i in range(niter):
         Qs = [align(T.T @ sy, sx, group="orth") for sx, sy in zip(sX, sY)]
-        A = np.row_stack(
+        A = np.vstack(
             [alpha * means_X] +
             [(2 - alpha) * sx for sx in sX]
         )
         r_sY = []
-        B = np.row_stack(
+        B = np.vstack(
             [alpha * means_Y] +
             [Q.T @ ((2 - alpha) * sy) for Q, sy in zip(Qs, sY)]
         )

@@ -328,12 +328,12 @@ def _fit_gp_alignment(
     for i in range(niter):
 
         Qs = align(np.kron(np.eye(n_times),T.T) @ sY, sX, group="orth")
-        A = np.row_stack(
+        A = np.vstack(
             [alpha * means_X] +
             [split((2-alpha)*sX,n_dims,n_dims)]
         )
 
-        B = np.row_stack(
+        B = np.vstack(
             [alpha * means_Y] +
             [split(Qs.T@((2-alpha)*sY),n_dims,n_dims)]
         )
